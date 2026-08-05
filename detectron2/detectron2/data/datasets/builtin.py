@@ -276,6 +276,89 @@ def register_ACDC(root):
     register_ACDC_instances("acdc_night", root+"/ACDC/gt_detection/night/instancesonly_night_train_gt_detection.json", root+"/ACDC/rgb_anon")
     register_ACDC_instances("acdc_rain", root+"/ACDC/gt_detection/rain/instancesonly_rain_train_gt_detection.json", root+"/ACDC/rgb_anon")
     register_ACDC_instances("acdc_snow", root+"/ACDC/gt_detection/snow/instancesonly_snow_train_gt_detection.json", root+"/ACDC/rgb_anon")
+
+
+def register_foggy_cityscapes(root):
+    """Foggy Cityscapes val set (beta=0.02) for Cityscapes→FoggyCityscapes eval.
+
+    Also registers foggy_cityscapes_val_mtl which adds sem_seg_file_name from
+    Cityscapes gtFine/val (same GT labels, foggy images) so both bbox AP and
+    mIoU can be evaluated with evaluator_type='coco_sem_seg'.
+    """
+    from .ACDC import register_ACDC_instances as _reg, load_ACDC_json
+    from .ACDC import dataset_id_to_contiguous_id as _acdc_id_map, CLASS_NAMES as _acdc_classes
+    json_file = os.path.join(root, "cityscapes_foggy/annotations/instancesonly_filtered_gtFine_val_foggy_beta_0.02.json")
+    image_root = os.path.join(root, "cityscapes_foggy/leftImg8bit_foggyDBF/val")
+    cs_gt_root = os.path.join(root, "cityscapes/gtFine/val")
+
+    if not (os.path.isfile(json_file) and os.path.isdir(image_root)):
+        print(f"[builtin] foggy_cityscapes_val not registered (files not found under {root})")
+        return
+
+    _reg("foggy_cityscapes_val", json_file, image_root)
+
+    # MTL variant: det bbox annotations + semantic seg GT from Cityscapes gtFine.
+    # Image stem: {city}_{frame}_{idx}_leftImg8bit_foggy_beta_0.02.png
+    # GT label:   {cs_gt_root}/{city}/{city}_{frame}_{idx}_gtFine_labelTrainIds.png
+    if os.path.isdir(cs_gt_root):
+        cityscapes_meta = _get_builtin_metadata("cityscapes")
+
+        def _load_foggy_mtl(json_file=json_file, image_root=image_root, cs_gt_root=cs_gt_root):
+            dicts = load_ACDC_json(json_file, image_root, "foggy_cityscapes_val_mtl")
+            for d in dicts:
+                basename = os.path.basename(d["file_name"])
+                stem = basename.replace("_leftImg8bit_foggy_beta_0.02.png", "")
+                city = stem.split("_")[0]
+                label_path = os.path.join(cs_gt_root, city, f"{stem}_gtFine_labelTrainIds.png")
+                if os.path.isfile(label_path):
+                    d["sem_seg_file_name"] = label_path
+            return dicts
+
+        DatasetCatalog.register("foggy_cityscapes_val_mtl", _load_foggy_mtl)
+        MetadataCatalog.get("foggy_cityscapes_val_mtl").set(
+            thing_classes=list(_acdc_classes),
+            stuff_classes=cityscapes_meta["stuff_classes"],
+            thing_dataset_id_to_contiguous_id=dict(_acdc_id_map),
+            json_file=json_file,
+            image_root=image_root,
+            sem_seg_root=cs_gt_root,
+            evaluator_type="coco_sem_seg",
+            ignore_label=255,
+        )
+    else:
+        print(f"[builtin] foggy_cityscapes_val_mtl not registered (Cityscapes gtFine not found at {cs_gt_root})")
+
+    # cityscapes_val_mtl: clean Cityscapes val for loopback / forgetting eval.
+    # Reuses the foggy MTL machinery but points at clear-weather val images
+    # and their own annotations (bbox JSON is the same instancesonly_filtered
+    # file Cityscapes ships in annotations/).
+    cs_val_json = os.path.join(root, "cityscapes/annotations/instancesonly_filtered_gtFine_val.json")
+    cs_val_image_root = os.path.join(root, "cityscapes/leftImg8bit/val")
+    if os.path.isfile(cs_val_json) and os.path.isdir(cs_val_image_root) and os.path.isdir(cs_gt_root):
+        def _load_cs_val_mtl(json_file=cs_val_json, image_root=cs_val_image_root, cs_gt_root=cs_gt_root):
+            dicts = load_ACDC_json(json_file, image_root, "cityscapes_val_mtl")
+            for d in dicts:
+                basename = os.path.basename(d["file_name"])
+                stem = basename.replace("_leftImg8bit.png", "")
+                city = stem.split("_")[0]
+                label_path = os.path.join(cs_gt_root, city, f"{stem}_gtFine_labelTrainIds.png")
+                if os.path.isfile(label_path):
+                    d["sem_seg_file_name"] = label_path
+            return dicts
+
+        DatasetCatalog.register("cityscapes_val_mtl", _load_cs_val_mtl)
+        MetadataCatalog.get("cityscapes_val_mtl").set(
+            thing_classes=list(_acdc_classes),
+            stuff_classes=cityscapes_meta["stuff_classes"],
+            thing_dataset_id_to_contiguous_id=dict(_acdc_id_map),
+            json_file=cs_val_json,
+            image_root=cs_val_image_root,
+            sem_seg_root=cs_gt_root,
+            evaluator_type="coco_sem_seg",
+            ignore_label=255,
+        )
+    else:
+        print(f"[builtin] cityscapes_val_mtl not registered (missing {cs_val_json} or {cs_val_image_root})")
     
     
 def register_shift(root):
@@ -297,4 +380,174 @@ if __name__.endswith(".builtin"):
     register_cityscapes_c(_root)
     register_ACDC(_root)
     register_shift(_root)
-    
+    try:
+        register_foggy_cityscapes(_root)
+    except Exception as e:
+        print(f"[builtin] foggy_cityscapes_val not registered: {e}")
+    # MTL-CTTA extension: register standard Cityscapes panoptic datasets and a
+    # merged instance+sem_seg variant ("cityscapes_fine_mtl_*") suitable for
+    # Panoptic-FPN-style joint det+seg training.
+    try:
+        register_all_cityscapes(_root)
+    except Exception as e:
+        print(f"[builtin] cityscapes_fine_{{instance_seg,sem_seg}} not registered: {e}")
+    try:
+        register_all_cityscapes_panoptic(_root)
+    except Exception as e:
+        print(f"[builtin] cityscapes_fine_panoptic not registered: {e}")
+
+    def _register_cityscapes_mtl(root):
+        # Merges per-image instance dicts (bbox/mask/annotations) with the
+        # sem_seg_file_name from the semantic-seg loader so a single dataset
+        # yields both instance annotations AND semantic segmentation targets.
+        for split in ("train", "val"):
+            name = f"cityscapes_fine_mtl_{split}"
+            image_dir = os.path.join(root, f"cityscapes/leftImg8bit/{split}")
+            gt_dir = os.path.join(root, f"cityscapes/gtFine/{split}")
+            meta = _get_builtin_metadata("cityscapes")
+
+            def _load(image_dir=image_dir, gt_dir=gt_dir):
+                inst = load_cityscapes_instances(
+                    image_dir, gt_dir, from_json=True, to_polygons=True
+                )
+                sem = load_cityscapes_semantic(image_dir, gt_dir)
+                sem_by_file = {r["file_name"]: r["sem_seg_file_name"] for r in sem}
+                for d in inst:
+                    if d["file_name"] in sem_by_file:
+                        d["sem_seg_file_name"] = sem_by_file[d["file_name"]]
+                return inst
+
+            DatasetCatalog.register(name, _load)
+            MetadataCatalog.get(name).set(
+                image_dir=image_dir,
+                gt_dir=gt_dir,
+                evaluator_type="cityscapes_instance",
+                ignore_label=255,
+                **meta,
+            )
+
+    try:
+        _register_cityscapes_mtl(_root)
+    except Exception as e:
+        print(f"[builtin] cityscapes_fine_mtl not registered: {e}")
+
+    # MTL-CTTA extension: COCO-format bbox dataset for standard COCO bbox AP
+    # evaluation (matches AMROD's reporting convention). JSON must be
+    # generated once via detectron2.data.datasets.coco.convert_to_coco_json.
+    bbox_json = os.path.join(_root, "annotations/cityscapes_bbox_val.json")
+    if os.path.exists(bbox_json):
+        try:
+            register_coco_instances(
+                "cityscapes_bbox_val",
+                {},
+                bbox_json,
+                os.path.join(_root, "cityscapes/leftImg8bit/val"),
+            )
+        except Exception as e:
+            print(f"[builtin] cityscapes_bbox_val not registered: {e}")
+
+    # MTL-CTTA extension: ACDC semseg-only and MTL variants. The base
+    # register_ACDC() above already registers det-only variants
+    # ("acdc_fog", "acdc_night", "acdc_rain", "acdc_snow"). Here we add:
+    #   acdc_{weather}_semseg -> sem_seg only    (for CoTTA_SemSeg eval)
+    #   acdc_{weather}_mtl    -> det + sem_seg   (for CTCMT_MTL eval)
+    def _register_acdc_semseg_and_mtl(root):
+        from .ACDC import load_ACDC_json, CLASS_NAMES as _ACDC_CLASS_NAMES
+        acdc_root = os.path.join(root, "ACDC")
+        if not os.path.isdir(acdc_root):
+            return
+        weathers = ("fog", "night", "rain", "snow")
+        cityscapes_meta = {
+            "stuff_classes": [
+                "road", "sidewalk", "building", "wall", "fence", "pole",
+                "traffic light", "traffic sign", "vegetation", "terrain",
+                "sky", "person", "rider", "car", "truck", "bus",
+                "train", "motorcycle", "bicycle",
+            ],
+        }
+        thing_classes = list(_ACDC_CLASS_NAMES)
+
+        image_root_base = os.path.join(acdc_root, "rgb_anon")
+        gt_root = os.path.join(acdc_root, "gt")
+
+        def _sem_seg_path_from_image(image_path):
+            # rgb_anon/fog/train/scene/name_rgb_anon.png -> gt/fog/train/scene/name_gt_labelTrainIds.png
+            rel = os.path.relpath(image_path, image_root_base)
+            rel = rel.replace("_rgb_anon.png", "_gt_labelTrainIds.png")
+            return os.path.join(gt_root, rel)
+
+        for w in weathers:
+            # ---- SemSeg-only variant.
+            gt_dir = os.path.join(gt_root, w, "train")
+            img_dir = os.path.join(image_root_base, w, "train")
+            semseg_name = f"acdc_{w}_semseg"
+
+            def _load_semseg(img_dir=img_dir, gt_dir=gt_dir):
+                out = []
+                for scene in sorted(os.listdir(gt_dir)):
+                    scene_dir = os.path.join(gt_dir, scene)
+                    if not os.path.isdir(scene_dir):
+                        continue
+                    for fn in sorted(os.listdir(scene_dir)):
+                        if not fn.endswith("_gt_labelTrainIds.png"):
+                            continue
+                        stem = fn.replace("_gt_labelTrainIds.png", "")
+                        img_path = os.path.join(img_dir, scene, f"{stem}_rgb_anon.png")
+                        if not os.path.isfile(img_path):
+                            continue
+                        out.append({
+                            "file_name": img_path,
+                            "sem_seg_file_name": os.path.join(scene_dir, fn),
+                        })
+                return out
+
+            DatasetCatalog.register(semseg_name, _load_semseg)
+            MetadataCatalog.get(semseg_name).set(
+                evaluator_type="sem_seg",
+                ignore_label=255,
+                image_root=img_dir,
+                sem_seg_root=gt_dir,
+                **cityscapes_meta,
+            )
+
+            # ---- MTL variant: det annotations + sem_seg_file_name.
+            det_json = os.path.join(
+                acdc_root, "gt_detection", w,
+                f"instancesonly_{w}_train_gt_detection.json",
+            )
+            if not os.path.isfile(det_json):
+                continue
+            mtl_name = f"acdc_{w}_mtl"
+
+            def _load_mtl(det_json=det_json, mtl_name=mtl_name):
+                # Pass mtl_name so load_ACDC_json sets
+                # thing_dataset_id_to_contiguous_id on the MTL metadata (needed
+                # by COCOEvaluator to map contiguous model IDs back to JSON IDs).
+                dicts = load_ACDC_json(det_json, image_root_base, dataset_name=mtl_name)
+                out = []
+                for d in dicts:
+                    sp = _sem_seg_path_from_image(d["file_name"])
+                    if os.path.isfile(sp):
+                        d["sem_seg_file_name"] = sp
+                        out.append(d)
+                return out
+
+            DatasetCatalog.register(mtl_name, _load_mtl)
+            # Precompute the id mapping from cityscapes labels so COCOEvaluator
+            # can rely on metadata even before _load_mtl is called.
+            from .ACDC import dataset_id_to_contiguous_id as _acdc_id_map
+            MetadataCatalog.get(mtl_name).set(
+                thing_classes=thing_classes,
+                thing_dataset_id_to_contiguous_id=dict(_acdc_id_map),
+                json_file=det_json,
+                image_root=image_root_base,
+                sem_seg_root=gt_root,
+                evaluator_type="coco_sem_seg",
+                ignore_label=255,
+                **cityscapes_meta,
+            )
+
+    try:
+        _register_acdc_semseg_and_mtl(_root)
+    except Exception as e:
+        print(f"[builtin] acdc_*_semseg/_mtl not registered: {e}")

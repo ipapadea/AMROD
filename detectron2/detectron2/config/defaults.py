@@ -31,6 +31,10 @@ _C.MODEL.MASK_ON = False
 _C.MODEL.KEYPOINT_ON = False
 _C.MODEL.DEVICE = "cuda"
 _C.MODEL.META_ARCHITECTURE = "GeneralizedRCNN"
+# CTCMT_MTL wraps a "student" of this meta-arch. Defaults to PanopticFPN for
+# MTL / seg-only / det-only-on-PFN configs; set to "GeneralizedRCNN" for
+# det-only on a Mask R-CNN source (single-task CTCMT_Det).
+_C.MODEL.CTCMT_STUDENT_META_ARCH = "PanopticFPN"
 
 # Path (a file path, or URL like detectron2://.., https://..) to a checkpoint file
 # to be loaded to the model. You can find available models in the model zoo.
@@ -533,6 +537,98 @@ _C.SOLVER.PROPOSALS = 1000
 _C.SOLVER.SCORE_EM = 0.5
 _C.SOLVER.SCORE_GAMMA = 0.9
 _C.SOLVER.SCORE_THRESH = 1.4
+
+# TT-BBR (Test-Time Bounding Box Refinement) -- added 2026-07-28.
+# Second-pass RoI regression on teacher boxes; IoU-consistency filter.
+# Motivated by ViTPrompt (CVPR 2026) which shows box quality degrades
+# under corruption but is untouched by all prior CTTA-OD methods.
+_C.SOLVER.TTBBR_ENABLED = False
+# IoU(B_init, B_refined) >= threshold => refinement accepted;
+# below => keep original box or drop entirely (see TTBBR_DROP).
+_C.SOLVER.TTBBR_IOU_THRESH = 0.7
+# If True, drop proposals where refinement is inconsistent (stronger filter).
+# If False, keep the original box for those (safer).
+_C.SOLVER.TTBBR_DROP_INCONSISTENT = False
+
+# XAI-guided pseudo-label filter (Option 1) -- added 2026-07-28.
+# Drops teacher boxes whose evidence is spatially diffuse (low concentration).
+# Applied AFTER TT-BBR (if enabled) so it filters the refined-box set.
+_C.SOLVER.XAI_FILTER_ENABLED = False
+# Attribution technique used to score each box's evidence concentration.
+#   "eigencam"  : 1st principal component of RoI features (Muhammad & Yeasin 2020)
+#   "featnorm"  : L2 norm of channel activations per spatial location
+#   "gradcam"   : gradient of predicted-class logit x activation (Selvaraju ICCV'17)
+_C.SOLVER.XAI_METHOD = "eigencam"
+# Boxes with concentration < XAI_THRESHOLD are dropped (or down-weighted).
+# concentration = 1 - normalized_entropy(spatial_map), in [0, 1].
+# NOTE: measured range on FR-CNN 7x7 pooled features + Cityscapes-C is
+# ~[0.02, 0.15]; use small values here (<= 0.05 for a light filter).
+_C.SOLVER.XAI_THRESHOLD = 0.02
+# "drop"     : discard low-concentration boxes entirely.
+# "reweight" : multiply their scores by concentration (rank-preserving soft filter).
+_C.SOLVER.XAI_MODE = "drop"
+
+# ---- CoTTA (Wang et al. CVPR 2022) for SemanticSegmentor.
+_C.SOLVER.COTTA_EMA_DECAY = 0.999
+_C.SOLVER.COTTA_RESTORE_PROB = 0.01
+_C.SOLVER.COTTA_CONF_THRESH = 0.72
+_C.SOLVER.COTTA_AUG_SCALES = (0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)
+_C.SOLVER.COTTA_AUG_FLIPS = (False, True)
+# ---- CT-CMT-MTL (Moraiti et al. 2026 extended) for PanopticFPN.
+_C.SOLVER.CTCMT_WEIGHT_DET = 1.0
+_C.SOLVER.CTCMT_WEIGHT_SEG = 1.0
+_C.SOLVER.CTCMT_WEIGHT_CTCL = 0.01
+_C.SOLVER.CTCMT_WEIGHT_CTCR = 0.0
+_C.SOLVER.CTCMT_CTCL_ENABLED = True
+_C.SOLVER.CTCMT_CTCL_SEG_VIEW = True
+_C.SOLVER.CTCMT_CTCL_TEMPERATURE = 0.07
+_C.SOLVER.CTCMT_CTCL_ROI_OUTPUT = (7, 7)
+_C.SOLVER.CTCMT_CTCL_PROJ_DIM = 128
+# Single-task ablation switches.
+_C.SOLVER.CTCMT_DET_ONLY = False
+_C.SOLVER.CTCMT_SEG_ONLY = False
+# When True, ignore the AMROD score-EM gate so every image contributes a step.
+_C.SOLVER.CTCMT_SKIP_SCORE_EM_GATE = False
+# V1: per-task decoupled adaptation gates.
+_C.SOLVER.CTCMT_PER_TASK_GATE = False
+_C.SOLVER.CTCMT_PER_TASK_GATE_DET_THRESH = 0.8
+_C.SOLVER.CTCMT_PER_TASK_GATE_SEG_THRESH = 0.8
+# V2: task-aware (cross-task) stochastic restore.
+_C.SOLVER.CTCMT_CROSS_TASK_FISHER = False
+_C.SOLVER.CTCMT_BACKBONE_RST_FACTOR = 1.0  # V2 configs set this to 0.1
+# V3: cross-task pseudo-label verification.
+_C.SOLVER.CTCMT_CTPV_ENABLED = False
+_C.SOLVER.CTCMT_CTPV_THRESH = 0.3
+# V4: cross-task prototype anchor.
+_C.SOLVER.CTCMT_PROTO_ANCHOR = False
+_C.SOLVER.CTCMT_PROTO_EMA = 0.999
+_C.SOLVER.CTCMT_PROTO_WEIGHT = 0.01
+# Confidence threshold for seg-only prototype update.
+_C.SOLVER.CTCMT_SEG_PROTO_CONF_THRESH = 0.9
+# When True, prototypes are initialized from the frozen anchor (source domain)
+# on the first image and kept fixed — pulls adaptation toward source class centers.
+_C.SOLVER.CTCMT_SEG_SOURCE_PROTO = False
+# --- Enhancements (E1..E5) tested in the "diagnostic-fix" batch, Aug 2026. ---
+# E2: down-weight uncertain pixels in seg soft-CE by (1 - normalized entropy).
+_C.SOLVER.CTCMT_ENTROPY_WEIGHTED_CE = False
+# E3: trigger seg aug-avg on TEACHER entropy instead of frozen-anchor confidence.
+_C.SOLVER.CTCMT_AUG_TRIGGER_TEACHER_ENTROPY = False
+_C.SOLVER.CTCMT_AUG_TEACHER_ENTROPY_THRESH = 0.3
+# E4: directional score-EM gate (skip on stability, boost CT-CL on shift onset).
+_C.SOLVER.CTCMT_DIRECTIONAL_GATE = False
+_C.SOLVER.CTCMT_DIR_GATE_STABLE_BAND = 0.4
+_C.SOLVER.CTCMT_DIR_GATE_BOOST = 2.0
+# E5: adaptive STR — the shared-trunk restore factor scales with measured drift.
+_C.SOLVER.CTCMT_ADAPTIVE_STR = False
+_C.SOLVER.CTCMT_ADAPTIVE_STR_BASE = 0.1
+_C.SOLVER.CTCMT_ADAPTIVE_STR_BOOST = 0.4
+_C.SOLVER.CTCMT_ADAPTIVE_STR_PIVOT = 0.05
+# CoTTA-style multi-scale aug-averaged seg pseudo-labels (kicks in when
+# the anchor's mean max-softmax is below the conf threshold).
+_C.SOLVER.CTCMT_SEG_AUG_ENABLED = False
+_C.SOLVER.CTCMT_SEG_AUG_CONF_THRESH = 0.9
+_C.SOLVER.CTCMT_SEG_AUG_SCALES = (0.75, 1.0, 1.25)
+_C.SOLVER.CTCMT_SEG_AUG_FLIPS = (False, True)
 
 # Options: WarmupMultiStepLR, WarmupCosineLR.
 # See detectron2/solver/build.py for definition.

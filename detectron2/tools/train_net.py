@@ -50,7 +50,7 @@ def build_evaluator(cfg, dataset_name, output_folder=None):
         output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
     evaluator_list = []
     evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
-    if evaluator_type in ["sem_seg", "coco_panoptic_seg"]:
+    if evaluator_type in ["sem_seg", "coco_panoptic_seg", "coco_sem_seg"]:
         evaluator_list.append(
             SemSegEvaluator(
                 dataset_name,
@@ -58,7 +58,7 @@ def build_evaluator(cfg, dataset_name, output_folder=None):
                 output_dir=output_folder,
             )
         )
-    if evaluator_type in ["coco", "coco_panoptic_seg"]:
+    if evaluator_type in ["coco", "coco_panoptic_seg", "coco_sem_seg"]:
         evaluator_list.append(COCOEvaluator(dataset_name, output_dir=output_folder))
     if evaluator_type == "coco_panoptic_seg":
         evaluator_list.append(COCOPanopticEvaluator(dataset_name, output_folder))
@@ -126,9 +126,15 @@ def main(args):
 
     if args.eval_only:
         model = Trainer.build_model(cfg)
-        DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
-            cfg.MODEL.WEIGHTS, resume=args.resume
-        )
+        # Meta-archs whose from_config loads MODEL.WEIGHTS into each sub-model
+        # (student/teacher/anchor). A second flat-key load here would fail to
+        # match the prefixed keys and empirically resets FrozenBN buffers on
+        # this fork, silently ruining eval.
+        _SELF_LOADING = {"AMROD", "CoTTA_SemSeg", "CTCMT_MTL", "CTCMT_Seg", "TENT_SemSeg"}
+        if cfg.MODEL.META_ARCHITECTURE not in _SELF_LOADING:
+            DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
+                cfg.MODEL.WEIGHTS, resume=args.resume
+            )
         res = Trainer.test(cfg, model)
         if cfg.TEST.AUG.ENABLED:
             res.update(Trainer.test_with_TTA(cfg, model))
