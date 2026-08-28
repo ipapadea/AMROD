@@ -27,7 +27,7 @@
         "AP50": 0.40986199999999995
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.068679"
+    "harvested_at": "2026-08-28T08:29:19.986204"
   },
   "ctcmt_det_acdc": {
     "tag": "ctcmt_det_acdc",
@@ -36,55 +36,28 @@
     "framework": "detectron2",
     "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det/log.txt",
     "summary": {
-      "mean_AP50": 0.5416,
-      "n_rounds": 2,
-      "n_datasets_per_round": 4,
-      "round_mean_AP50": [
-        0.5323,
-        0.551
-      ]
+      "mean_AP50": 0.551,
+      "n_datasets": 4
     },
     "per_dataset": {
-      "__per_repeat__": [
-        {
-          "acdc_fog_mtl": {
-            "AP": 0.38453400000000004,
-            "AP50": 0.613144
-          },
-          "acdc_night_mtl": {
-            "AP": 0.18784700000000001,
-            "AP50": 0.379373
-          },
-          "acdc_rain_mtl": {
-            "AP": 0.32387900000000003,
-            "AP50": 0.565124
-          },
-          "acdc_snow_mtl": {
-            "AP": 0.321401,
-            "AP50": 0.571638
-          }
-        },
-        {
-          "acdc_fog_mtl": {
-            "AP": 0.387635,
-            "AP50": 0.617789
-          },
-          "acdc_night_mtl": {
-            "AP": 0.19264299999999998,
-            "AP50": 0.385454
-          },
-          "acdc_rain_mtl": {
-            "AP": 0.34063299999999996,
-            "AP50": 0.587114
-          },
-          "acdc_snow_mtl": {
-            "AP": 0.348598,
-            "AP50": 0.613559
-          }
-        }
-      ]
+      "acdc_fog_mtl": {
+        "AP": 0.387635,
+        "AP50": 0.617789
+      },
+      "acdc_night_mtl": {
+        "AP": 0.19264299999999998,
+        "AP50": 0.385454
+      },
+      "acdc_rain_mtl": {
+        "AP": 0.34063299999999996,
+        "AP50": 0.587114
+      },
+      "acdc_snow_mtl": {
+        "AP": 0.348598,
+        "AP50": 0.613559
+      }
     },
-    "harvested_at": "2026-08-28T06:36:02.069485"
+    "harvested_at": "2026-08-28T08:29:19.986911"
   },
   "ctcmt_seg_acdc": {
     "tag": "ctcmt_seg_acdc",
@@ -114,7 +87,7 @@
         "AP50": 0.59848
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.069820"
+    "harvested_at": "2026-08-28T08:29:19.987249"
   },
   "ctcmt_mtl_acdc": {
     "tag": "ctcmt_mtl_acdc",
@@ -123,93 +96,28 @@
     "framework": "detectron2",
     "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_mtl/log.txt",
     "summary": {
-      "mean_AP50": 0.5607,
-      "n_rounds": 4,
-      "n_datasets_per_round": 4,
-      "round_mean_AP50": [
-        0.5587,
-        0.5591,
-        0.5611,
-        0.564
-      ]
+      "mean_AP50": 0.564,
+      "n_datasets": 4
     },
     "per_dataset": {
-      "__per_repeat__": [
-        {
-          "acdc_fog_mtl": {
-            "AP": 0.39218600000000003,
-            "AP50": 0.63234
-          },
-          "acdc_night_mtl": {
-            "AP": 0.19141100000000003,
-            "AP50": 0.384054
-          },
-          "acdc_rain_mtl": {
-            "AP": 0.34103900000000004,
-            "AP50": 0.591611
-          },
-          "acdc_snow_mtl": {
-            "AP": 0.352763,
-            "AP50": 0.62682
-          }
-        },
-        {
-          "acdc_fog_mtl": {
-            "AP": 0.39338500000000004,
-            "AP50": 0.626908
-          },
-          "acdc_night_mtl": {
-            "AP": 0.193895,
-            "AP50": 0.38565699999999997
-          },
-          "acdc_rain_mtl": {
-            "AP": 0.34672800000000004,
-            "AP50": 0.593268
-          },
-          "acdc_snow_mtl": {
-            "AP": 0.358703,
-            "AP50": 0.630471
-          }
-        },
-        {
-          "acdc_fog_mtl": {
-            "AP": 0.393653,
-            "AP50": 0.621429
-          },
-          "acdc_night_mtl": {
-            "AP": 0.19609100000000002,
-            "AP50": 0.38827599999999995
-          },
-          "acdc_rain_mtl": {
-            "AP": 0.35808799999999996,
-            "AP50": 0.59717
-          },
-          "acdc_snow_mtl": {
-            "AP": 0.373821,
-            "AP50": 0.6375500000000001
-          }
-        },
-        {
-          "acdc_fog_mtl": {
-            "AP": 0.394658,
-            "AP50": 0.622626
-          },
-          "acdc_night_mtl": {
-            "AP": 0.197361,
-            "AP50": 0.390139
-          },
-          "acdc_rain_mtl": {
-            "AP": 0.359736,
-            "AP50": 0.599753
-          },
-          "acdc_snow_mtl": {
-            "AP": 0.377573,
-            "AP50": 0.643586
-          }
-        }
-      ]
+      "acdc_fog_mtl": {
+        "AP": 0.394658,
+        "AP50": 0.622626
+      },
+      "acdc_night_mtl": {
+        "AP": 0.197361,
+        "AP50": 0.390139
+      },
+      "acdc_rain_mtl": {
+        "AP": 0.359736,
+        "AP50": 0.599753
+      },
+      "acdc_snow_mtl": {
+        "AP": 0.377573,
+        "AP50": 0.643586
+      }
     },
-    "harvested_at": "2026-08-28T06:36:02.071397"
+    "harvested_at": "2026-08-28T08:29:19.988598"
   },
   "amrod_x10": {
     "tag": "amrod_x10",
@@ -418,7 +326,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T06:36:02.072738"
+    "harvested_at": "2026-08-28T08:29:19.989881"
   },
   "ctcmt_det_x10": {
     "tag": "ctcmt_det_x10",
@@ -627,7 +535,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T06:36:02.074101"
+    "harvested_at": "2026-08-28T08:29:19.991156"
   },
   "ctcmt_v4b_x10": {
     "tag": "ctcmt_v4b_x10",
@@ -836,7 +744,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T06:36:02.076029"
+    "harvested_at": "2026-08-28T08:29:19.992903"
   },
   "amrod_shift": {
     "tag": "amrod_shift",
@@ -866,7 +774,7 @@
         "AP50": 0.256644
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.076486"
+    "harvested_at": "2026-08-28T08:29:19.993335"
   },
   "ctcmt_det_shift": {
     "tag": "ctcmt_det_shift",
@@ -896,7 +804,7 @@
         "AP50": 0.200114
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.077244"
+    "harvested_at": "2026-08-28T08:29:19.994059"
   },
   "trilit_source_acdc": {
     "tag": "trilit_source_acdc",
@@ -927,7 +835,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.101676"
+    "harvested_at": "2026-08-28T08:29:20.021117"
   },
   "trilit_amrod_acdc": {
     "tag": "trilit_amrod_acdc",
@@ -958,7 +866,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.101841"
+    "harvested_at": "2026-08-28T08:29:20.021287"
   },
   "trilit_ctcmt_acdc": {
     "tag": "trilit_ctcmt_acdc",
@@ -989,7 +897,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.101996"
+    "harvested_at": "2026-08-28T08:29:20.021431"
   },
   "trilit_ctcmt_x10": {
     "tag": "trilit_ctcmt_x10",
@@ -1111,7 +1019,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T06:36:02.102242"
+    "harvested_at": "2026-08-28T08:29:20.021657"
   },
   "trilit_ctcmt_det_acdc": {
     "tag": "trilit_ctcmt_det_acdc",
@@ -1142,7 +1050,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.102378"
+    "harvested_at": "2026-08-28T08:29:20.021790"
   },
   "trilit_ctcmt_seg_acdc": {
     "tag": "trilit_ctcmt_seg_acdc",
@@ -1173,7 +1081,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.102510"
+    "harvested_at": "2026-08-28T08:29:20.021916"
   },
   "trilit_ctcmt_mtl_acdc": {
     "tag": "trilit_ctcmt_mtl_acdc",
@@ -1204,7 +1112,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.102634"
+    "harvested_at": "2026-08-28T08:29:20.022035"
   },
   "amrod_cs_c": {
     "tag": "amrod_cs_c",
@@ -1359,7 +1267,7 @@
         "AP50": 0.158101
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.078679"
+    "harvested_at": "2026-08-28T08:29:19.998203"
   },
   "ctcmt_det_cs_c": {
     "tag": "ctcmt_det_cs_c",
@@ -1368,26 +1276,10 @@
     "framework": "detectron2",
     "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det_cs_c/log.txt",
     "summary": {
-      "mean_AP50": 0.1958,
-      "n_datasets": 16
+      "mean_AP50": 0.1468,
+      "n_datasets": 12
     },
     "per_dataset": {
-      "acdc_fog": {
-        "AP": 0.3281,
-        "AP50": 0.503447
-      },
-      "acdc_night": {
-        "AP": 0.079417,
-        "AP50": 0.156754
-      },
-      "acdc_rain": {
-        "AP": 0.188364,
-        "AP50": 0.326059
-      },
-      "acdc_snow": {
-        "AP": 0.218975,
-        "AP50": 0.384679
-      },
       "defocus_blur": {
         "AP": 0.044935,
         "AP50": 0.071086
@@ -1437,7 +1329,7 @@
         "AP50": 0.08143399999999999
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.079484"
+    "harvested_at": "2026-08-28T08:29:19.998959"
   },
   "ctcmt_det_mr_cs_c": {
     "tag": "ctcmt_det_mr_cs_c",
@@ -1499,7 +1391,7 @@
         "AP50": 0.126592
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.079971"
+    "harvested_at": "2026-08-28T08:29:19.999415"
   },
   "ctcmt_seg_cs_c": {
     "tag": "ctcmt_seg_cs_c",
@@ -1508,26 +1400,10 @@
     "framework": "detectron2",
     "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_seg_cs_c/log.txt",
     "summary": {
-      "mean_AP50": 0.1806,
-      "n_datasets": 16
+      "mean_AP50": 0.1293,
+      "n_datasets": 12
     },
     "per_dataset": {
-      "acdc_fog": {
-        "AP": 0.33136699999999997,
-        "AP50": 0.511057
-      },
-      "acdc_night": {
-        "AP": 0.077419,
-        "AP50": 0.152303
-      },
-      "acdc_rain": {
-        "AP": 0.18103100000000003,
-        "AP50": 0.31316900000000003
-      },
-      "acdc_snow": {
-        "AP": 0.207505,
-        "AP50": 0.36097999999999997
-      },
       "defocus_blur": {
         "AP": 0.042558,
         "AP50": 0.067315
@@ -1577,7 +1453,7 @@
         "AP50": 0.064682
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.080915"
+    "harvested_at": "2026-08-28T08:29:20.000370"
   },
   "ctcmt_mtl_cs_c": {
     "tag": "ctcmt_mtl_cs_c",
@@ -1586,26 +1462,10 @@
     "framework": "detectron2",
     "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_mtl_cs_c/log.txt",
     "summary": {
-      "mean_AP50": 0.1943,
-      "n_datasets": 16
+      "mean_AP50": 0.14,
+      "n_datasets": 12
     },
     "per_dataset": {
-      "acdc_fog": {
-        "AP": 0.33299799999999996,
-        "AP50": 0.515512
-      },
-      "acdc_night": {
-        "AP": 0.080909,
-        "AP50": 0.160327
-      },
-      "acdc_rain": {
-        "AP": 0.196472,
-        "AP50": 0.339934
-      },
-      "acdc_snow": {
-        "AP": 0.237471,
-        "AP50": 0.41325
-      },
       "defocus_blur": {
         "AP": 0.047373000000000005,
         "AP50": 0.073838
@@ -1655,7 +1515,7 @@
         "AP50": 0.107083
       }
     },
-    "harvested_at": "2026-08-28T06:36:02.081792"
+    "harvested_at": "2026-08-28T08:29:20.001199"
   },
   "trilit_det_amrod_acdc": {
     "tag": "trilit_det_amrod_acdc",
@@ -1686,7 +1546,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.102763"
+    "harvested_at": "2026-08-28T08:29:20.022151"
   },
   "trilit_seg_cotta_acdc": {
     "tag": "trilit_seg_cotta_acdc",
@@ -1717,6 +1577,42 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T06:36:02.102934"
+    "harvested_at": "2026-08-28T08:29:20.022321"
+  },
+  "source_foggy": {
+    "tag": "source_foggy",
+    "benchmark": "Foggy",
+    "description": "Source-only, Cityscapes\u2192FoggyCS",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/source_only_foggy/log.txt",
+    "summary": {
+      "mean_AP50": 0.3404,
+      "n_datasets": 1
+    },
+    "per_dataset": {
+      "foggy_cityscapes_val": {
+        "AP": 0.239115,
+        "AP50": 0.34043500000000004
+      }
+    },
+    "harvested_at": "2026-08-28T08:29:19.995695"
+  },
+  "amrod_v2_foggy": {
+    "tag": "amrod_v2_foggy",
+    "benchmark": "Foggy",
+    "description": "AMROD+V2, Cityscapes\u2192FoggyCS",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_v2_foggy/log.txt",
+    "summary": {
+      "mean_AP50": 0.3558,
+      "n_datasets": 1
+    },
+    "per_dataset": {
+      "foggy_cityscapes_val": {
+        "AP": 0.24804600000000002,
+        "AP50": 0.355822
+      }
+    },
+    "harvested_at": "2026-08-28T08:29:19.996775"
   }
 }

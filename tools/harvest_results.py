@@ -35,61 +35,186 @@ D2_CORRUPTIONS = [
 ]
 ACDC_WEATHERS = ["acdc_fog","acdc_night","acdc_rain","acdc_snow"]
 
-def _parse_d2_log(logfile: Path) -> Optional[Dict]:
+ACDC_MTL_WEATHERS = [
+    "acdc_fog_mtl",
+    "acdc_night_mtl",
+    "acdc_rain_mtl",
+    "acdc_snow_mtl",
+]
+
+CS_C_LT_CORRUPTIONS = [
+    "fog",
+    "motion_blur",
+    "snow",
+    "brightness",
+    "defocus_blur",
+]
+
+def _parse_d2_log(
+    logfile: Path,
+    expected_cycle: Optional[List[str]] = None,
+    expected_rounds: int = 1,
+) -> Optional[Dict]:
     """Parse a detectron2 CTTA log.
 
-    Returns a dict with two shapes depending on the number of rounds:
+    When an expected protocol is provided, only the latest complete
+    occurrence of that exact protocol is returned.
 
-    Single-round (normal experiment):
-        {"acdc_fog": {"AP": 0.33, "AP50": 0.52}, ...}
+    This is important because Detectron2 log.txt files may contain
+    multiple independent runs appended over time. Repeated dataset
+    names must therefore not automatically be interpreted as CTTA
+    rounds.
 
-    Multi-round (long-term experiment, same dataset name repeats):
-        {"__per_repeat__": [
-            {"acdc_fog": {"AP": ..., "AP50": ...}, ...},   # round 1
-            ...
-        ]}
+    Examples:
+      ACDC short:
+        1 × [fog, night, rain, snow]
+
+      ACDC long-term:
+        10 × [fog, night, rain, snow]
+
+      Cityscapes-C short:
+        1 × 12 corruptions
+
+      Cityscapes-C long-term:
+        10 × [fog, motion_blur, snow, brightness, defocus_blur]
     """
     if not logfile.is_file():
         return None
+
     text = logfile.read_text(errors="replace")
     if "CTTA_" not in text and "Evaluation results for" not in text:
         return None
 
-    # Collect ALL (dataset, AP, AP50) in log order — preserves multi-round sequences.
-    occurrences: list = []   # list of (ds_name, ap, ap50)
+    # Collect all evaluation results in chronological log order.
+    occurrences = []
+
     for m in re.finditer(
         r"Evaluation results for (\S+) in csv format.*?copypaste: ([0-9.,]+)",
-        text, re.DOTALL
+        text,
+        re.DOTALL,
     ):
         ds, cp = m.group(1), m.group(2)
+
         vals = [float(v) for v in cp.split(",")]
+
         if len(vals) >= 2:
-            occurrences.append((ds, vals[0] / 100, vals[1] / 100))
+            occurrences.append(
+                (
+                    ds,
+                    vals[0] / 100.0,
+                    vals[1] / 100.0,
+                )
+            )
 
     if not occurrences:
         return None
 
-    # Detect multi-round: same dataset name appears more than once.
+    # ------------------------------------------------------------------
+    # Benchmark-aware parsing.
+    #
+    # Search backwards for the latest COMPLETE exact protocol.
+    # This prevents old runs appended to log.txt from being interpreted
+    # as additional continual-adaptation rounds.
+    # ------------------------------------------------------------------
+    if expected_cycle:
+        allowed = set(expected_cycle)
+
+        # Remove unrelated evaluations that may exist in the same log.
+        filtered = [
+            x for x in occurrences
+            if x[0] in allowed
+        ]
+
+        expected_names = list(expected_cycle) * expected_rounds
+        n_expected = len(expected_names)
+
+        if len(filtered) < n_expected:
+            return None
+
+        selected = None
+
+        # Find the latest exact complete protocol.
+        for start in range(len(filtered) - n_expected, -1, -1):
+            window = filtered[start:start + n_expected]
+            names = [x[0] for x in window]
+
+            if names == expected_names:
+                selected = window
+                break
+
+        if selected is None:
+            return None
+
+        # Single-round experiment.
+        if expected_rounds == 1:
+            return {
+                ds: {
+                    "AP": ap,
+                    "AP50": ap50,
+                }
+                for ds, ap, ap50 in selected
+            }
+
+        # Multi-round experiment.
+        per_repeat = []
+
+        cycle_len = len(expected_cycle)
+
+        for r in range(expected_rounds):
+            block = selected[
+                r * cycle_len:(r + 1) * cycle_len
+            ]
+
+            per_repeat.append({
+                ds: {
+                    "AP": ap,
+                    "AP50": ap50,
+                }
+                for ds, ap, ap50 in block
+            })
+
+        return {
+            "__per_repeat__": per_repeat
+        }
+
+    # ------------------------------------------------------------------
+    # Generic fallback for benchmarks for which no explicit protocol
+    # has been defined yet.
+    # ------------------------------------------------------------------
     ds_names = [o[0] for o in occurrences]
+
     is_multi = len(ds_names) > len(set(ds_names))
 
     if not is_multi:
-        return {ds: {"AP": ap, "AP50": ap50} for ds, ap, ap50 in occurrences}
+        return {
+            ds: {
+                "AP": ap,
+                "AP50": ap50,
+            }
+            for ds, ap, ap50 in occurrences
+        }
 
-    # Multi-round: group into repeats using first-appearance order of dataset names.
-    # Each time the first dataset name reappears we start a new repeat.
     first_ds = ds_names[0]
-    per_repeat: list = []
-    current: dict = {}
+
+    per_repeat = []
+    current = {}
+
     for ds, ap, ap50 in occurrences:
         if ds == first_ds and current:
             per_repeat.append(current)
             current = {}
-        current[ds] = {"AP": ap, "AP50": ap50}
+
+        current[ds] = {
+            "AP": ap,
+            "AP50": ap50,
+        }
+
     if current:
         per_repeat.append(current)
 
-    return {"__per_repeat__": per_repeat}
+    return {
+        "__per_repeat__": per_repeat
+    }
 
 
 def _d2_summary(results: Dict) -> Dict:
@@ -214,13 +339,46 @@ TRILIT_EXPERIMENTS = [
 # Main harvester
 # ---------------------------------------------------------------------------
 
+def _d2_protocol(tag: str, benchmark: str):
+    """Return (expected_dataset_cycle, expected_rounds)."""
+
+    # Cityscapes -> ACDC long-term (AMROD Table 5)
+    if benchmark == "ACDC-10":
+        return ACDC_WEATHERS, 10
+
+    # Cityscapes -> Cityscapes-C short-term (AMROD Table 2)
+    if benchmark == "CS-C":
+        return D2_CORRUPTIONS, 1
+
+    # Cityscapes -> Cityscapes-C long-term (AMROD Table 3)
+    if benchmark == "CS-C-LT":
+        return CS_C_LT_CORRUPTIONS, 10
+
+    # Short ACDC experiments.
+    if benchmark == "ACDC":
+        # Panoptic-FPN / MTL configs use the *_mtl registrations.
+        if tag in {
+            "ctcmt_det_acdc",
+            "ctcmt_seg_acdc",
+            "ctcmt_mtl_acdc",
+        }:
+            return ACDC_MTL_WEATHERS, 1
+
+        return ACDC_WEATHERS, 1
+
+    # SHIFT / Foggy / other future benchmarks:
+    # keep the generic parser for now.
+    return None, 1
+
+
 def harvest() -> Dict:
     entries = {}
 
     # D2 experiments
     for tag, subdir, bench, desc in D2_EXPERIMENTS:
         logf = D2_OUTPUT_ROOT / subdir / "log.txt"
-        parsed = _parse_d2_log(logf)
+        cycle, rounds = _d2_protocol(tag, bench)
+        parsed = _parse_d2_log(logf, expected_cycle=cycle, expected_rounds=rounds)
         if parsed:
             entries[tag] = {
                 "tag": tag,
