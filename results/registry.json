@@ -1521,5 +1521,67 @@
       }
     },
     "harvested_at": "2026-08-28T08:59:31.480779"
+  },
+  "amrod_cs_c": {
+    "tag": "amrod_cs_c",
+    "benchmark": "CS-C",
+    "description": "AMROD, MkRCNN-ours src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.1721,
+      "n_datasets": 12
+    },
+    "per_dataset": {
+      "defocus_blur": {
+        "AP": 0.049690000000000005,
+        "AP50": 0.07748000000000001
+      },
+      "glass_blur": {
+        "AP": 0.050906,
+        "AP50": 0.081524
+      },
+      "motion_blur": {
+        "AP": 0.063736,
+        "AP50": 0.113093
+      },
+      "zoom_blur": {
+        "AP": 0.004850999999999999,
+        "AP50": 0.011557
+      },
+      "snow": {
+        "AP": 0.002202,
+        "AP50": 0.002888
+      },
+      "frost": {
+        "AP": 0.036515,
+        "AP50": 0.061287
+      },
+      "fog": {
+        "AP": 0.26975899999999997,
+        "AP50": 0.43498800000000004
+      },
+      "brightness": {
+        "AP": 0.210954,
+        "AP50": 0.34153500000000003
+      },
+      "contrast": {
+        "AP": 0.047889,
+        "AP50": 0.083423
+      },
+      "elastic_transform": {
+        "AP": 0.36140500000000003,
+        "AP50": 0.598431
+      },
+      "pixelate": {
+        "AP": 0.087778,
+        "AP50": 0.1365
+      },
+      "jpeg_compression": {
+        "AP": 0.06816799999999999,
+        "AP50": 0.12283
+      }
+    },
+    "harvested_at": "2026-08-28T11:01:03.781365"
   }
 }
