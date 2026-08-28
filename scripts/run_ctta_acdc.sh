@@ -327,13 +327,13 @@ IS_ACDC=true
 # For single-round ACDC the config's own TEST is identical and no override is needed.
 # CS-C long-term (Table 3) uses a 5-corruption subset of CS-C with NUM_REPEATS rounds.
 DATASETS_TEST_ARG=""
-if $IS_CS_C_LT && [ "$NUM_REPEATS" -gt 1 ]; then
+if $IS_CS_C_LT; then
   # Table 3 cycle: fog -> motion_blur -> snow -> brightness -> defocus_blur
   DATASETS_TEST=$(python3 -c "
 n = int('${NUM_REPEATS}')
 cycle = ['fog','motion_blur','snow','brightness','defocus_blur']
-entries = ','.join(f'\"{{w}}\"' for w in cycle * n)
-print(f'({{entries}})')
+entries = ','.join(f'\"{w}\"' for w in cycle * n)
+print(f'({entries})')
 ")
   DATASETS_TEST_ARG="DATASETS.TEST '${DATASETS_TEST}'"
 elif $IS_ACDC && [ "$NUM_REPEATS" -gt 1 ]; then
