@@ -4,4 +4,4 @@ _BASE_: "./cotta_semseg_R_50_ACDC.yaml"
 DATASETS:
   TEST: ("defocus_blur","glass_blur","motion_blur","zoom_blur","snow","frost","fog","brightness","contrast","elastic_transform","pixelate","jpeg_compression")
 
-OUTPUT_DIR: "/workspace/output/ctta_cs_c/cotta_seg"
+OUTPUT_DIR: "/workspace/output/ctta_acdc/cotta_cs_c"

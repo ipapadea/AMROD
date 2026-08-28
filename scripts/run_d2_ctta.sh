@@ -13,8 +13,8 @@
 # ARGUMENTS
 #   --gpu    GPU      GPU index (default: 0)
 #   --method METHOD   Adaptation method:
-#                       amrod        AMROD, Mask R-CNN source
-#                       amrod-off    AMROD, official paper source weights
+#                       amrod        AMROD, our trained Mask R-CNN source
+#                       amrod-off    AMROD, official paper source weights (cityscapes_train_final.pth)
 #                       ctcmt-det    CT-CMT det-only, Mask R-CNN source
 #                       ctcmt-seg    CT-CMT seg-only, Panoptic FPN source
 #                       ctcmt-mtl    CT-CMT MTL v4b, Panoptic FPN source
@@ -67,7 +67,7 @@ fi
 # ---- Method → run_ctta_acdc.sh TRACK ----
 case "${METHOD}__${BENCH}" in
     amrod__acdc)        TRACK="amrod" ;;
-    amrod-off__acdc)    TRACK="amrod" ;;   # override weights via AMROD config
+    amrod-off__acdc)    TRACK="amrod_official" ;;   # official paper weights
     ctcmt-det__acdc)    TRACK="ctcmt_det" ;;
     ctcmt-seg__acdc)    TRACK="ctcmt_seg" ;;
     ctcmt-mtl__acdc)    TRACK="ctcmt_v4b" ;;

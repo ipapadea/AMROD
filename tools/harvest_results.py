@@ -36,15 +36,27 @@ D2_CORRUPTIONS = [
 ACDC_WEATHERS = ["acdc_fog","acdc_night","acdc_rain","acdc_snow"]
 
 def _parse_d2_log(logfile: Path) -> Optional[Dict]:
-    """Parse a detectron2 CTTA log → dict of {dataset: ap50}."""
+    """Parse a detectron2 CTTA log.
+
+    Returns a dict with two shapes depending on the number of rounds:
+
+    Single-round (normal experiment):
+        {"acdc_fog": {"AP": 0.33, "AP50": 0.52}, ...}
+
+    Multi-round (long-term experiment, same dataset name repeats):
+        {"__per_repeat__": [
+            {"acdc_fog": {"AP": ..., "AP50": ...}, ...},   # round 1
+            ...
+        ]}
+    """
     if not logfile.is_file():
         return None
     text = logfile.read_text(errors="replace")
     if "CTTA_" not in text and "Evaluation results for" not in text:
         return None
 
-    results = {}
-    # Find all (dataset_name, copypaste_line) pairs
+    # Collect ALL (dataset, AP, AP50) in log order — preserves multi-round sequences.
+    occurrences: list = []   # list of (ds_name, ap, ap50)
     for m in re.finditer(
         r"Evaluation results for (\S+) in csv format.*?copypaste: ([0-9.,]+)",
         text, re.DOTALL
@@ -52,16 +64,55 @@ def _parse_d2_log(logfile: Path) -> Optional[Dict]:
         ds, cp = m.group(1), m.group(2)
         vals = [float(v) for v in cp.split(",")]
         if len(vals) >= 2:
-            # copypaste format is already percentage (e.g. 52.04); normalize to fraction
-            results[ds] = {"AP": vals[0]/100, "AP50": vals[1]/100}
+            occurrences.append((ds, vals[0] / 100, vals[1] / 100))
 
-    return results if results else None
+    if not occurrences:
+        return None
+
+    # Detect multi-round: same dataset name appears more than once.
+    ds_names = [o[0] for o in occurrences]
+    is_multi = len(ds_names) > len(set(ds_names))
+
+    if not is_multi:
+        return {ds: {"AP": ap, "AP50": ap50} for ds, ap, ap50 in occurrences}
+
+    # Multi-round: group into repeats using first-appearance order of dataset names.
+    # Each time the first dataset name reappears we start a new repeat.
+    first_ds = ds_names[0]
+    per_repeat: list = []
+    current: dict = {}
+    for ds, ap, ap50 in occurrences:
+        if ds == first_ds and current:
+            per_repeat.append(current)
+            current = {}
+        current[ds] = {"AP": ap, "AP50": ap50}
+    if current:
+        per_repeat.append(current)
+
+    return {"__per_repeat__": per_repeat}
 
 
 def _d2_summary(results: Dict) -> Dict:
-    """Compute mean AP50 across all datasets in a d2 result dict."""
+    """Compute summary from a d2 result dict (single or multi-round)."""
+    if "__per_repeat__" in results:
+        per_repeat = results["__per_repeat__"]
+        # Mean AP50 across all rounds × all datasets (overall mean).
+        all_ap50 = [v["AP50"] for r in per_repeat for v in r.values()]
+        mean_all = round(sum(all_ap50) / len(all_ap50), 4) if all_ap50 else None
+        # Per-round mean AP50 for R1/R4/R7/R10 reporting.
+        round_means = []
+        for r in per_repeat:
+            ap50s = [v["AP50"] for v in r.values()]
+            round_means.append(round(sum(ap50s) / len(ap50s), 4) if ap50s else None)
+        return {
+            "mean_AP50": mean_all,
+            "n_rounds": len(per_repeat),
+            "n_datasets_per_round": len(per_repeat[0]) if per_repeat else 0,
+            "round_mean_AP50": round_means,  # index 0 = R1, index 3 = R4, etc.
+        }
+    # Single-round.
     ap50s = [v["AP50"] for v in results.values() if "AP50" in v]
-    return {"mean_AP50": round(sum(ap50s)/len(ap50s), 4) if ap50s else None,
+    return {"mean_AP50": round(sum(ap50s) / len(ap50s), 4) if ap50s else None,
             "n_datasets": len(results)}
 
 
@@ -105,6 +156,7 @@ D2_EXPERIMENTS = [
     # tag, output_subdir, benchmark, description
     # subdir is relative to D2_OUTPUT_ROOT for all entries (CS-C also lands in ctta_acdc/)
     ("amrod_acdc",          "amrod",               "ACDC",    "AMROD, MkRCNN src, Cityscapes→ACDC"),
+    ("amrod_official_acdc", "amrod_official",      "ACDC",    "AMROD, official src, Cityscapes→ACDC"),
     ("ctcmt_det_acdc",      "ctcmt_det",           "ACDC",    "CT-CMT-Det, PFN src, Cityscapes→ACDC"),
     ("ctcmt_seg_acdc",      "ctcmt_seg",           "ACDC",    "CT-CMT-Seg, PFN src, Cityscapes→ACDC"),
     ("ctcmt_mtl_acdc",      "ctcmt_mtl",           "ACDC",    "CT-CMT-MTL v4b, PFN src, Cityscapes→ACDC"),
@@ -205,6 +257,12 @@ def pretty_print(registry: Dict, filter_str: Optional[str] = None) -> None:
         metrics = ""
         if mean_ap50 is not None:
             metrics += f"  AP50={mean_ap50*100:.1f}%"
+        # Show R1 and R10 for long-term experiments.
+        rmeans = s.get("round_mean_AP50", [])
+        if len(rmeans) >= 2:
+            r1 = rmeans[0]*100 if rmeans[0] is not None else float("nan")
+            r10 = rmeans[-1]*100 if rmeans[-1] is not None else float("nan")
+            metrics += f"  (R1={r1:.1f}% R{len(rmeans)}={r10:.1f}%)"
         if miou is not None:
             metrics += f"  mIoU={miou*100:.1f}%"
         print(f"  {tag:<35} {desc:<45}{metrics}")

@@ -5,4 +5,4 @@ _BASE_: "./ctcmt_det_mr_R_50_ACDC.yaml"
 DATASETS:
   TEST: ("defocus_blur","glass_blur","motion_blur","zoom_blur","snow","frost","fog","brightness","contrast","elastic_transform","pixelate","jpeg_compression")
 
-OUTPUT_DIR: "/workspace/output/ctta_cs_c/ctcmt_det_mr"
+OUTPUT_DIR: "/workspace/output/ctta_acdc/ctcmt_det_mr_cs_c"

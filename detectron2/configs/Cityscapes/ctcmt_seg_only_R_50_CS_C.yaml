@@ -5,4 +5,4 @@ _BASE_: "./ctcmt_seg_only_pfn_R_50_ACDC.yaml"
 DATASETS:
   TEST: ("defocus_blur","glass_blur","motion_blur","zoom_blur","snow","frost","fog","brightness","contrast","elastic_transform","pixelate","jpeg_compression")
 
-OUTPUT_DIR: "/workspace/output/ctta_cs_c/ctcmt_seg"
+OUTPUT_DIR: "/workspace/output/ctta_acdc/ctcmt_seg_cs_c"

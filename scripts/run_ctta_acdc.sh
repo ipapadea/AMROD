@@ -88,6 +88,9 @@ case "$TRACK" in
   amrod_official_cs_c)
     CFG="detectron2/configs/Cityscapes/amrod_official_R_50_CS_C.yaml"
     ;;
+  amrod_official)
+    CFG="detectron2/configs/Cityscapes/amrod_official_R_50_ACDC.yaml"
+    ;;
   cotta_v2)
     CFG="detectron2/configs/Cityscapes/cotta_v2_semseg_R_50_ACDC.yaml"
     ;;
@@ -286,17 +289,31 @@ esac
 OUT_ROOT="/workspace/output/ctta_acdc/${TRACK}"
 [ "$NUM_REPEATS" -gt 1 ] && OUT_ROOT="${OUT_ROOT}_x${NUM_REPEATS}"
 
-# Build repeated DATASETS.TEST string: n copies of the 4-weather cycle.
-# CS-C tracks use the config's own TEST tuple — no repeat override needed.
+# Classify benchmark so we know what (if anything) to override in DATASETS.TEST.
+# Only ACDC tracks support the multi-round repeat mechanism.
+# SHIFT / foggy / loopback / CS-C tracks must use the TEST sequence from their own config.
 IS_CS_C=false
-[[ "$TRACK" == *_cs_c ]] && IS_CS_C=true
+IS_SHIFT=false
+IS_FOGGY=false
+[[ "$TRACK" == *_cs_c ]]    && IS_CS_C=true
+[[ "$TRACK" == *_shift* ]] && IS_SHIFT=true
+[[ "$TRACK" == *_foggy* || "$TRACK" == *foggy* ]] && IS_FOGGY=true
+[[ "$TRACK" == *loopback* ]] && IS_FOGGY=true   # loopbacks append CS val — keep as-is
+IS_ACDC=true
+( $IS_CS_C || $IS_SHIFT || $IS_FOGGY ) && IS_ACDC=false
 
-DATASETS_TEST=$(python3 -c "
+# Build repeated DATASETS.TEST only for ACDC tracks with NUM_REPEATS > 1.
+# For single-round ACDC the config's own TEST is identical and no override is needed.
+DATASETS_TEST_ARG=""
+if $IS_ACDC && [ "$NUM_REPEATS" -gt 1 ]; then
+  DATASETS_TEST=$(python3 -c "
 n = int('${NUM_REPEATS}')
 cycle = ['acdc_fog','acdc_night','acdc_rain','acdc_snow']
 entries = ','.join(f'\"{w}\"' for w in cycle * n)
 print(f'({entries})')
 ")
+  DATASETS_TEST_ARG="DATASETS.TEST '${DATASETS_TEST}'"
+fi
 
 # CS-C: mount each corruption dir individually at /datasets/<corruption>.
 # The existing /datasets/cityscapes mount provides the shared GT JSON.
@@ -316,7 +333,7 @@ if $IS_CS_C; then
     -v ${CS_C_ROOT}/elastic_transform:/datasets/elastic_transform:ro \
     -v ${CS_C_ROOT}/pixelate:/datasets/pixelate:ro \
     -v ${CS_C_ROOT}/jpeg_compression:/datasets/jpeg_compression:ro"
-  SKIP_MOUNTS=""  # no ACDC/shift needed
+  SKIP_MOUNTS=""
 else
   EXTRA_MOUNTS=""
   SKIP_MOUNTS="\
@@ -343,17 +360,10 @@ docker run --rm --gpus "\"device=${GPU}\"" --shm-size=8g \
     export HOME=/tmp
     pip install --quiet --user --no-warn-script-location shapely 2>&1 | tail -1
     echo '>>> CTTA ${TRACK} on test stream <<<'
-    if ${IS_CS_C}; then
-      python detectron2/tools/train_net.py \
-        --config-file ${CFG} \
-        --eval-only --num-gpus 1 \
-        OUTPUT_DIR ${OUT_ROOT} 2>&1
-    else
-      python detectron2/tools/train_net.py \
-        --config-file ${CFG} \
-        --eval-only --num-gpus 1 \
-        OUTPUT_DIR ${OUT_ROOT} \
-        DATASETS.TEST '${DATASETS_TEST}' 2>&1
-    fi
+    python detectron2/tools/train_net.py \
+      --config-file ${CFG} \
+      --eval-only --num-gpus 1 \
+      OUTPUT_DIR ${OUT_ROOT} \
+      ${DATASETS_TEST_ARG} 2>&1
     echo CTTA_${TRACK}_DONE
   "

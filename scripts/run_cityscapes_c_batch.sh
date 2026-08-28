@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Cityscapes-to-Cityscapes-C CTTA batch (Table 2 style).
 #
-# Runs 5 methods sequentially on a single GPU (default: 0).
+# Runs 6 methods sequentially on a single GPU (default: 0).
 # Each method shares the same 12-corruption test stream.
 #
-#   amrod_cs_c      AMROD det-only      (paper Table 2 replica)
-#   cotta_cs_c      CoTTA seg-only      (sota seg baseline)
-#   ctcmt_det_cs_c  CT-CMT det-only     (ours, ablation)
-#   ctcmt_seg_cs_c  CT-CMT seg-only     (ours, ablation)
-#   ctcmt_mtl_cs_c  CT-CMT MTL v4b      (ours, full method)
+#   amrod_cs_c          AMROD det-only, our MkRCNN source
+#   cotta_cs_c          CoTTA seg-only
+#   ctcmt_det_cs_c      CT-CMT det-only, PFN source
+#   ctcmt_seg_cs_c      CT-CMT seg-only, PFN source
+#   ctcmt_mtl_cs_c      CT-CMT MTL v4b (ours, full method)
+#   ctcmt_det_mr_cs_c   CT-CMT det-only, MkRCNN source (fair vs AMROD)
 #
 # Usage:
 #   bash scripts/run_cityscapes_c_batch.sh [GPU]   (default GPU=0)
