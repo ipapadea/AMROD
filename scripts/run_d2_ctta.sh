@@ -25,8 +25,8 @@
 #                       cs-c-lt      Cityscapes → Cityscapes-C (5 corruptions × 10 rounds) (Table 3)
 #                       shift        Cityscapes → SHIFT (4 conditions, 1 round)            (Table 4)
 #                       foggy        Cityscapes → Foggy Cityscapes
-#   --repeats N       CTTA rounds for ACDC: 1=short task, 10=long-term (default: 1)
-#                     (cs-c and shift use their own fixed sequences)
+#   --repeats N       CTTA rounds: default 1 for all benches except cs-c-lt which defaults to 10.
+#                     Explicit --repeats N always overrides the default (use for smoke tests).
 #
 # EXAMPLES
 #   # CT-CMT-MTL on ACDC, GPU 2
@@ -49,13 +49,14 @@ GPU=0
 METHOD=""
 BENCH="acdc"
 REPEATS=1
+REPEATS_EXPLICIT=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --gpu)     GPU="$2";     shift 2 ;;
         --method)  METHOD="$2";  shift 2 ;;
         --bench)   BENCH="$2";   shift 2 ;;
-        --repeats) REPEATS="$2"; shift 2 ;;
+        --repeats) REPEATS="$2"; REPEATS_EXPLICIT=true; shift 2 ;;
         -h|--help) head -60 "$0"; exit 0 ;;
         *) echo "Unknown arg: $1"; exit 1 ;;
     esac
@@ -63,6 +64,12 @@ done
 
 if [[ -z "$METHOD" ]]; then
     echo "ERROR: --method is required."; exit 1
+fi
+
+# Table 3 is intrinsically a 10-round long-term protocol.
+# Keep explicit --repeats values available for smoke tests/debugging.
+if [[ "$BENCH" == "cs-c-lt" && "$REPEATS_EXPLICIT" == false ]]; then
+    REPEATS=10
 fi
 
 # ---- Method → run_ctta_acdc.sh TRACK ----
