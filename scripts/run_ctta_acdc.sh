@@ -6,6 +6,7 @@ set -euo pipefail
 GPU="$1"
 TRACK="$2"        # amrod | cotta_semseg | ctcmt_mtl | ctcmt_det | ctcmt_seg
                   # ctcmt_mtl_no_ctcl | ctcmt_mtl_intra_ctcl
+NUM_REPEATS="${3:-1}"   # optional: number of fog->night->rain->snow cycles (long-term)
 CFG=""
 case "$TRACK" in
   amrod)
@@ -64,6 +65,28 @@ case "$TRACK" in
     ;;
   amrod_shift)
     CFG="detectron2/configs/Cityscapes/amrod_shift_R_50_CTTA.yaml"
+    ;;
+  # ---- Cityscapes-to-Cityscapes-C ----
+  amrod_cs_c)
+    CFG="detectron2/configs/Cityscapes/amrod_mask_rcnn_R_50_CS_C.yaml"
+    ;;
+  cotta_cs_c)
+    CFG="detectron2/configs/Cityscapes/cotta_semseg_R_50_CS_C.yaml"
+    ;;
+  ctcmt_det_cs_c)
+    CFG="detectron2/configs/Cityscapes/ctcmt_det_only_R_50_CS_C.yaml"
+    ;;
+  ctcmt_seg_cs_c)
+    CFG="detectron2/configs/Cityscapes/ctcmt_seg_only_R_50_CS_C.yaml"
+    ;;
+  ctcmt_mtl_cs_c)
+    CFG="detectron2/configs/Cityscapes/ctcmt_mtl_R_50_CS_C.yaml"
+    ;;
+  ctcmt_det_mr_cs_c)
+    CFG="detectron2/configs/Cityscapes/ctcmt_det_mr_R_50_CS_C.yaml"
+    ;;
+  amrod_official_cs_c)
+    CFG="detectron2/configs/Cityscapes/amrod_official_R_50_CS_C.yaml"
     ;;
   cotta_v2)
     CFG="detectron2/configs/Cityscapes/cotta_v2_semseg_R_50_ACDC.yaml"
@@ -261,6 +284,47 @@ case "$TRACK" in
 esac
 
 OUT_ROOT="/workspace/output/ctta_acdc/${TRACK}"
+[ "$NUM_REPEATS" -gt 1 ] && OUT_ROOT="${OUT_ROOT}_x${NUM_REPEATS}"
+
+# Build repeated DATASETS.TEST string: n copies of the 4-weather cycle.
+# CS-C tracks use the config's own TEST tuple — no repeat override needed.
+IS_CS_C=false
+[[ "$TRACK" == *_cs_c ]] && IS_CS_C=true
+
+DATASETS_TEST=$(python3 -c "
+n = int('${NUM_REPEATS}')
+cycle = ['acdc_fog','acdc_night','acdc_rain','acdc_snow']
+entries = ','.join(f'\"{w}\"' for w in cycle * n)
+print(f'({entries})')
+")
+
+# CS-C: mount each corruption dir individually at /datasets/<corruption>.
+# The existing /datasets/cityscapes mount provides the shared GT JSON.
+# Skip ACDC/shift/foggy mounts to avoid conflicting with the corruption dirs.
+if $IS_CS_C; then
+  CS_C_ROOT="/data/vgcmt/datasets/cityscapes_c_amrod"
+  EXTRA_MOUNTS="\
+    -v ${CS_C_ROOT}/defocus_blur:/datasets/defocus_blur:ro \
+    -v ${CS_C_ROOT}/glass_blur:/datasets/glass_blur:ro \
+    -v ${CS_C_ROOT}/motion_blur:/datasets/motion_blur:ro \
+    -v ${CS_C_ROOT}/zoom_blur:/datasets/zoom_blur:ro \
+    -v ${CS_C_ROOT}/snow:/datasets/snow:ro \
+    -v ${CS_C_ROOT}/frost:/datasets/frost:ro \
+    -v ${CS_C_ROOT}/fog:/datasets/fog:ro \
+    -v ${CS_C_ROOT}/brightness:/datasets/brightness:ro \
+    -v ${CS_C_ROOT}/contrast:/datasets/contrast:ro \
+    -v ${CS_C_ROOT}/elastic_transform:/datasets/elastic_transform:ro \
+    -v ${CS_C_ROOT}/pixelate:/datasets/pixelate:ro \
+    -v ${CS_C_ROOT}/jpeg_compression:/datasets/jpeg_compression:ro"
+  SKIP_MOUNTS=""  # no ACDC/shift needed
+else
+  EXTRA_MOUNTS=""
+  SKIP_MOUNTS="\
+    -v /data/ilias/acdc:/datasets/ACDC:ro \
+    -v /data/vgcmt/datasets/cityscapes_foggy:/datasets/cityscapes_foggy:ro \
+    -v /data/ilias/shift_amrod:/datasets/shift:ro \
+    -v /data/ilias/shift/discrete/images:/data/ilias/shift/discrete/images:ro"
+fi
 
 docker run --rm --gpus "\"device=${GPU}\"" --shm-size=8g \
   --user "$(id -u):$(id -g)" \
@@ -268,22 +332,28 @@ docker run --rm --gpus "\"device=${GPU}\"" --shm-size=8g \
   -v /data/vgcmt/datasets/cityscapes:/data/vgcmt/datasets/cityscapes:ro \
   -v /data/ilias/cityscapes_pfn:/datasets/cityscapes:ro \
   -v /data/ilias/panoptic_fpn/output/coco_annotations:/datasets/annotations:ro \
-  -v /data/ilias/acdc:/datasets/ACDC:ro \
-  -v /data/vgcmt/datasets/cityscapes_foggy:/datasets/cityscapes_foggy:ro \
-  -v /data/ilias/shift_amrod:/datasets/shift:ro \
-  -v /data/ilias/shift/discrete/images:/data/ilias/shift/discrete/images:ro \
   -v "/data/vgcmt/downloads/amrod/extracted/model weight":/workspace/weights:ro \
   -v /data/ilias/panoptic_fpn/output:/workspace/output \
+  ${SKIP_MOUNTS} \
+  ${EXTRA_MOUNTS} \
   -w /workspace/amrod \
   -e DETECTRON2_DATASETS=/datasets \
   -e PYTHONPATH=/workspace/amrod/detectron2 \
   amrod:latest bash -c "
     export HOME=/tmp
     pip install --quiet --user --no-warn-script-location shapely 2>&1 | tail -1
-    echo '>>> CTTA ${TRACK} continual on acdc_fog->night->rain->snow <<<'
-    python detectron2/tools/train_net.py \
-      --config-file ${CFG} \
-      --eval-only --num-gpus 1 \
-      OUTPUT_DIR ${OUT_ROOT} 2>&1
+    echo '>>> CTTA ${TRACK} on test stream <<<'
+    if ${IS_CS_C}; then
+      python detectron2/tools/train_net.py \
+        --config-file ${CFG} \
+        --eval-only --num-gpus 1 \
+        OUTPUT_DIR ${OUT_ROOT} 2>&1
+    else
+      python detectron2/tools/train_net.py \
+        --config-file ${CFG} \
+        --eval-only --num-gpus 1 \
+        OUTPUT_DIR ${OUT_ROOT} \
+        DATASETS.TEST '${DATASETS_TEST}' 2>&1
+    fi
     echo CTTA_${TRACK}_DONE
   "

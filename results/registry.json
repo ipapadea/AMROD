@@ -1,0 +1,1078 @@
+{
+  "amrod_acdc": {
+    "tag": "amrod_acdc",
+    "benchmark": "ACDC",
+    "description": "AMROD, MkRCNN src, Cityscapes\u2192ACDC",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod/log.txt",
+    "summary": {
+      "mean_AP50": 0.3533,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.335818,
+        "AP50": 0.513796
+      },
+      "acdc_night": {
+        "AP": 0.076112,
+        "AP50": 0.152258
+      },
+      "acdc_rain": {
+        "AP": 0.19442900000000002,
+        "AP50": 0.337427
+      },
+      "acdc_snow": {
+        "AP": 0.232665,
+        "AP50": 0.40986199999999995
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.203121"
+  },
+  "ctcmt_det_acdc": {
+    "tag": "ctcmt_det_acdc",
+    "benchmark": "ACDC",
+    "description": "CT-CMT-Det, PFN src, Cityscapes\u2192ACDC",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det/log.txt",
+    "summary": {
+      "mean_AP50": 0.551,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog_mtl": {
+        "AP": 0.387635,
+        "AP50": 0.617789
+      },
+      "acdc_night_mtl": {
+        "AP": 0.19264299999999998,
+        "AP50": 0.385454
+      },
+      "acdc_rain_mtl": {
+        "AP": 0.34063299999999996,
+        "AP50": 0.587114
+      },
+      "acdc_snow_mtl": {
+        "AP": 0.348598,
+        "AP50": 0.613559
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.203854"
+  },
+  "ctcmt_seg_acdc": {
+    "tag": "ctcmt_seg_acdc",
+    "benchmark": "ACDC",
+    "description": "CT-CMT-Seg, PFN src, Cityscapes\u2192ACDC",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_seg/log.txt",
+    "summary": {
+      "mean_AP50": 0.5443,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog_mtl": {
+        "AP": 0.388013,
+        "AP50": 0.6192
+      },
+      "acdc_night_mtl": {
+        "AP": 0.190977,
+        "AP50": 0.383138
+      },
+      "acdc_rain_mtl": {
+        "AP": 0.335254,
+        "AP50": 0.576398
+      },
+      "acdc_snow_mtl": {
+        "AP": 0.34332,
+        "AP50": 0.59848
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.204239"
+  },
+  "ctcmt_mtl_acdc": {
+    "tag": "ctcmt_mtl_acdc",
+    "benchmark": "ACDC",
+    "description": "CT-CMT-MTL v4b, PFN src, Cityscapes\u2192ACDC",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_mtl/log.txt",
+    "summary": {
+      "mean_AP50": 0.564,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog_mtl": {
+        "AP": 0.394658,
+        "AP50": 0.622626
+      },
+      "acdc_night_mtl": {
+        "AP": 0.197361,
+        "AP50": 0.390139
+      },
+      "acdc_rain_mtl": {
+        "AP": 0.359736,
+        "AP50": 0.599753
+      },
+      "acdc_snow_mtl": {
+        "AP": 0.377573,
+        "AP50": 0.643586
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.205804"
+  },
+  "amrod_x10": {
+    "tag": "amrod_x10",
+    "benchmark": "ACDC-10",
+    "description": "AMROD long-term 10-round",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_x10/log.txt",
+    "summary": {
+      "mean_AP50": 0.3989,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.348516,
+        "AP50": 0.549948
+      },
+      "acdc_night": {
+        "AP": 0.113171,
+        "AP50": 0.227684
+      },
+      "acdc_rain": {
+        "AP": 0.21220199999999997,
+        "AP50": 0.37518300000000004
+      },
+      "acdc_snow": {
+        "AP": 0.25635,
+        "AP50": 0.44284999999999997
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.207086"
+  },
+  "ctcmt_det_x10": {
+    "tag": "ctcmt_det_x10",
+    "benchmark": "ACDC-10",
+    "description": "CT-CMT-Det long-term 10-round",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det_x10/log.txt",
+    "summary": {
+      "mean_AP50": 0.4221,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.40147,
+        "AP50": 0.601202
+      },
+      "acdc_night": {
+        "AP": 0.11197800000000001,
+        "AP50": 0.224834
+      },
+      "acdc_rain": {
+        "AP": 0.225896,
+        "AP50": 0.39317399999999997
+      },
+      "acdc_snow": {
+        "AP": 0.26919699999999996,
+        "AP50": 0.469248
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.208388"
+  },
+  "ctcmt_v4b_x10": {
+    "tag": "ctcmt_v4b_x10",
+    "benchmark": "ACDC-10",
+    "description": "CT-CMT-MTL v4b long-term 10-round",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_v4b_x10/log.txt",
+    "summary": {
+      "mean_AP50": 0.3895,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.339938,
+        "AP50": 0.5165500000000001
+      },
+      "acdc_night": {
+        "AP": 0.109824,
+        "AP50": 0.215245
+      },
+      "acdc_rain": {
+        "AP": 0.21088300000000001,
+        "AP50": 0.367064
+      },
+      "acdc_snow": {
+        "AP": 0.263275,
+        "AP50": 0.45917
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.210328"
+  },
+  "amrod_shift": {
+    "tag": "amrod_shift",
+    "benchmark": "SHIFT",
+    "description": "AMROD, Cityscapes\u2192SHIFT",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_shift/log.txt",
+    "summary": {
+      "mean_AP50": 0.3759,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "shift_cloudy": {
+        "AP": 0.280125,
+        "AP50": 0.495497
+      },
+      "shift_overcast": {
+        "AP": 0.20947600000000002,
+        "AP50": 0.388714
+      },
+      "shift_rainy": {
+        "AP": 0.186742,
+        "AP50": 0.362547
+      },
+      "shift_foggy": {
+        "AP": 0.132055,
+        "AP50": 0.256644
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.210762"
+  },
+  "ctcmt_det_shift": {
+    "tag": "ctcmt_det_shift",
+    "benchmark": "SHIFT",
+    "description": "CT-CMT-Det, Cityscapes\u2192SHIFT",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det_shift/log.txt",
+    "summary": {
+      "mean_AP50": 0.3261,
+      "n_datasets": 4
+    },
+    "per_dataset": {
+      "shift_cloudy": {
+        "AP": 0.264832,
+        "AP50": 0.45555999999999996
+      },
+      "shift_overcast": {
+        "AP": 0.19250399999999998,
+        "AP50": 0.340574
+      },
+      "shift_rainy": {
+        "AP": 0.169755,
+        "AP50": 0.308012
+      },
+      "shift_foggy": {
+        "AP": 0.10355,
+        "AP50": 0.200114
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.211509"
+  },
+  "trilit_source_acdc": {
+    "tag": "trilit_source_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet MTL, source-only",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__source__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.27380993962287903,
+      "global_AP50": 0.04354915608381688,
+      "per_weather": {
+        "fog": {
+          "miou": 0.35375332832336426,
+          "AP50": 0.15085418587391206
+        },
+        "night": {
+          "miou": 0.15722738206386566,
+          "AP50": 0.005286805290909291
+        },
+        "rain": {
+          "miou": 0.3000587821006775,
+          "AP50": 0.05441016249702808
+        },
+        "snow": {
+          "miou": 0.26018914580345154,
+          "AP50": 0.04807072362037847
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.235419"
+  },
+  "trilit_amrod_acdc": {
+    "tag": "trilit_amrod_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet MTL, AMROD-MTL adapter",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__amrod_mtl__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.14095813035964966,
+      "global_AP50": 0.010666335771573644,
+      "per_weather": {
+        "fog": {
+          "miou": 0.1598675698041916,
+          "AP50": 0.04481088019312383
+        },
+        "night": {
+          "miou": 0.12025082856416702,
+          "AP50": 0.005950348478645084
+        },
+        "rain": {
+          "miou": 0.14586080610752106,
+          "AP50": 0.014200170479412643
+        },
+        "snow": {
+          "miou": 0.1291843205690384,
+          "AP50": 0.008729722357305786
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.235587"
+  },
+  "trilit_ctcmt_acdc": {
+    "tag": "trilit_ctcmt_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet MTL, CT-CMT adapter",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__ctcmt__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.14138548076152802,
+      "global_AP50": 0.0110956895850859,
+      "per_weather": {
+        "fog": {
+          "miou": 0.16004668176174164,
+          "AP50": 0.04478626634520736
+        },
+        "night": {
+          "miou": 0.12059199064970016,
+          "AP50": 0.0058331944211723035
+        },
+        "rain": {
+          "miou": 0.14628596603870392,
+          "AP50": 0.015078360295525216
+        },
+        "snow": {
+          "miou": 0.1298293024301529,
+          "AP50": 0.00912713974341493
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.235742"
+  },
+  "trilit_ctcmt_x10": {
+    "tag": "trilit_ctcmt_x10",
+    "benchmark": "ACDC-10",
+    "description": "TriLiteNet MTL, CT-CMT long-term",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__ctcmt__x10/summary.json",
+    "metrics": {
+      "global_miou": 0.15944355726242065,
+      "global_AP50": 0.00282846762725839,
+      "per_weather": {
+        "fog": {
+          "miou": 0.18012098968029022,
+          "AP50": 0.011628083717433926
+        },
+        "night": {
+          "miou": 0.13844342529773712,
+          "AP50": 0.003995024770735885
+        },
+        "rain": {
+          "miou": 0.1587524265050888,
+          "AP50": 0.003946602527974815
+        },
+        "snow": {
+          "miou": 0.14727522432804108,
+          "AP50": 0.003062161630271728
+        }
+      },
+      "per_repeat": [
+        {
+          "miou": 0.15957273542881012,
+          "det": {
+            "fog": 0.05014405738259649,
+            "night": 0.008207399331601858,
+            "rain": 0.016508364886179804,
+            "snow": 0.01630510324744226
+          }
+        },
+        {
+          "miou": 0.15960097312927246,
+          "det": {
+            "fog": 0.04963030874593233,
+            "night": 0.007937813082923687,
+            "rain": 0.021460593425344458,
+            "snow": 0.016237946080293112
+          }
+        },
+        {
+          "miou": 0.1595672369003296,
+          "det": {
+            "fog": 0.04967570586926055,
+            "night": 0.008941723161300097,
+            "rain": 0.02237397546151677,
+            "snow": 0.0163840541181301
+          }
+        },
+        {
+          "miou": 0.15959396958351135,
+          "det": {
+            "fog": 0.04755257917839955,
+            "night": 0.008944726452377072,
+            "rain": 0.022763919398868543,
+            "snow": 0.017541358196676685
+          }
+        },
+        {
+          "miou": 0.15949560701847076,
+          "det": {
+            "fog": 0.044892806063449836,
+            "night": 0.009345339263956658,
+            "rain": 0.02227672639314056,
+            "snow": 0.017582217019442417
+          }
+        },
+        {
+          "miou": 0.15940751135349274,
+          "det": {
+            "fog": 0.0489869399701764,
+            "night": 0.009380215198524668,
+            "rain": 0.022068584976880475,
+            "snow": 0.016285833878870948
+          }
+        },
+        {
+          "miou": 0.15938301384449005,
+          "det": {
+            "fog": 0.04913873991065623,
+            "night": 0.009484228240583217,
+            "rain": 0.021802763644333145,
+            "snow": 0.01639892554418027
+          }
+        },
+        {
+          "miou": 0.1593398004770279,
+          "det": {
+            "fog": 0.04701749423268076,
+            "night": 0.009396905470538595,
+            "rain": 0.022200785013311075,
+            "snow": 0.016281637465261106
+          }
+        },
+        {
+          "miou": 0.15925176441669464,
+          "det": {
+            "fog": 0.04642027049504321,
+            "night": 0.009870674257890566,
+            "rain": 0.02202871789625396,
+            "snow": 0.016082937888022692
+          }
+        },
+        {
+          "miou": 0.15924739837646484,
+          "det": {
+            "fog": 0.0472289000911594,
+            "night": 0.00999493589438897,
+            "rain": 0.023137468284336844,
+            "snow": 0.016066237503947207
+          }
+        }
+      ]
+    },
+    "harvested_at": "2026-08-06T20:32:24.235980"
+  },
+  "trilit_ctcmt_det_acdc": {
+    "tag": "trilit_ctcmt_det_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet MTL, CT-CMT det-only",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__ctcmt_det__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.15953946113586426,
+      "global_AP50": 0.01351795079060456,
+      "per_weather": {
+        "fog": {
+          "miou": 0.18052637577056885,
+          "AP50": 0.050148329397443424
+        },
+        "night": {
+          "miou": 0.1382645219564438,
+          "AP50": 0.008440077729500622
+        },
+        "rain": {
+          "miou": 0.15855151414871216,
+          "AP50": 0.016158440562099016
+        },
+        "snow": {
+          "miou": 0.14736872911453247,
+          "AP50": 0.016027882313172793
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.236115"
+  },
+  "trilit_ctcmt_seg_acdc": {
+    "tag": "trilit_ctcmt_seg_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet MTL, CT-CMT seg-only",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__ctcmt_seg__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.15963225066661835,
+      "global_AP50": 0.01344766567903741,
+      "per_weather": {
+        "fog": {
+          "miou": 0.18075253069400787,
+          "AP50": 0.046693656915338964
+        },
+        "night": {
+          "miou": 0.13829028606414795,
+          "AP50": 0.00878555106333311
+        },
+        "rain": {
+          "miou": 0.15843157470226288,
+          "AP50": 0.01645239273945299
+        },
+        "snow": {
+          "miou": 0.14751210808753967,
+          "AP50": 0.01961556023415131
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.236257"
+  },
+  "trilit_ctcmt_mtl_acdc": {
+    "tag": "trilit_ctcmt_mtl_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet MTL, CT-CMT MTL-only",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_mtl_base_native__ctcmt_mtl__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.15954123437404633,
+      "global_AP50": 0.013784415983768722,
+      "per_weather": {
+        "fog": {
+          "miou": 0.18055200576782227,
+          "AP50": 0.050204620654835996
+        },
+        "night": {
+          "miou": 0.138289213180542,
+          "AP50": 0.009085373633666186
+        },
+        "rain": {
+          "miou": 0.15858756005764008,
+          "AP50": 0.016339343515988685
+        },
+        "snow": {
+          "miou": 0.14733214676380157,
+          "AP50": 0.01625810306352341
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.236382"
+  },
+  "amrod_cs_c": {
+    "tag": "amrod_cs_c",
+    "benchmark": "CS-C",
+    "description": "AMROD, MkRCNN-ours src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.219,
+      "n_datasets": 16
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.338455,
+        "AP50": 0.520156
+      },
+      "acdc_night": {
+        "AP": 0.08035600000000001,
+        "AP50": 0.160999
+      },
+      "acdc_rain": {
+        "AP": 0.19713799999999998,
+        "AP50": 0.34387799999999996
+      },
+      "acdc_snow": {
+        "AP": 0.234708,
+        "AP50": 0.41322600000000004
+      },
+      "defocus_blur": {
+        "AP": 0.049690000000000005,
+        "AP50": 0.07748000000000001
+      },
+      "glass_blur": {
+        "AP": 0.050906,
+        "AP50": 0.081524
+      },
+      "motion_blur": {
+        "AP": 0.063736,
+        "AP50": 0.113093
+      },
+      "zoom_blur": {
+        "AP": 0.004850999999999999,
+        "AP50": 0.011557
+      },
+      "snow": {
+        "AP": 0.002202,
+        "AP50": 0.002888
+      },
+      "frost": {
+        "AP": 0.036515,
+        "AP50": 0.061287
+      },
+      "fog": {
+        "AP": 0.26975899999999997,
+        "AP50": 0.43498800000000004
+      },
+      "brightness": {
+        "AP": 0.210954,
+        "AP50": 0.34153500000000003
+      },
+      "contrast": {
+        "AP": 0.047889,
+        "AP50": 0.083423
+      },
+      "elastic_transform": {
+        "AP": 0.36140500000000003,
+        "AP50": 0.598431
+      },
+      "pixelate": {
+        "AP": 0.087778,
+        "AP50": 0.1365
+      },
+      "jpeg_compression": {
+        "AP": 0.06816799999999999,
+        "AP50": 0.12283
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.212531"
+  },
+  "amrod_official_cs_c": {
+    "tag": "amrod_official_cs_c",
+    "benchmark": "CS-C",
+    "description": "AMROD, official src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_official_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.1901,
+      "n_datasets": 12
+    },
+    "per_dataset": {
+      "defocus_blur": {
+        "AP": 0.036654,
+        "AP50": 0.07194600000000001
+      },
+      "glass_blur": {
+        "AP": 0.047735,
+        "AP50": 0.09102199999999999
+      },
+      "motion_blur": {
+        "AP": 0.042713,
+        "AP50": 0.088888
+      },
+      "zoom_blur": {
+        "AP": 0.007184,
+        "AP50": 0.019184
+      },
+      "snow": {
+        "AP": 0.002964,
+        "AP50": 0.007065
+      },
+      "frost": {
+        "AP": 0.047929000000000006,
+        "AP50": 0.105504
+      },
+      "fog": {
+        "AP": 0.22666899999999998,
+        "AP50": 0.43131
+      },
+      "brightness": {
+        "AP": 0.221309,
+        "AP50": 0.43555
+      },
+      "contrast": {
+        "AP": 0.048368,
+        "AP50": 0.10438399999999999
+      },
+      "elastic_transform": {
+        "AP": 0.285657,
+        "AP50": 0.547119
+      },
+      "pixelate": {
+        "AP": 0.11655900000000001,
+        "AP50": 0.221404
+      },
+      "jpeg_compression": {
+        "AP": 0.07738,
+        "AP50": 0.158101
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.212898"
+  },
+  "ctcmt_det_cs_c": {
+    "tag": "ctcmt_det_cs_c",
+    "benchmark": "CS-C",
+    "description": "CT-CMT-Det, PFN src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.1958,
+      "n_datasets": 16
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.3281,
+        "AP50": 0.503447
+      },
+      "acdc_night": {
+        "AP": 0.079417,
+        "AP50": 0.156754
+      },
+      "acdc_rain": {
+        "AP": 0.188364,
+        "AP50": 0.326059
+      },
+      "acdc_snow": {
+        "AP": 0.218975,
+        "AP50": 0.384679
+      },
+      "defocus_blur": {
+        "AP": 0.044935,
+        "AP50": 0.071086
+      },
+      "glass_blur": {
+        "AP": 0.030602,
+        "AP50": 0.049677
+      },
+      "motion_blur": {
+        "AP": 0.065182,
+        "AP50": 0.111207
+      },
+      "zoom_blur": {
+        "AP": 0.005856,
+        "AP50": 0.012455
+      },
+      "snow": {
+        "AP": 0.001361,
+        "AP50": 0.0024749999999999998
+      },
+      "frost": {
+        "AP": 0.017655,
+        "AP50": 0.0292
+      },
+      "fog": {
+        "AP": 0.23309000000000002,
+        "AP50": 0.392014
+      },
+      "brightness": {
+        "AP": 0.146662,
+        "AP50": 0.219949
+      },
+      "contrast": {
+        "AP": 0.033576999999999996,
+        "AP50": 0.056546000000000006
+      },
+      "elastic_transform": {
+        "AP": 0.370156,
+        "AP50": 0.621464
+      },
+      "pixelate": {
+        "AP": 0.066395,
+        "AP50": 0.113955
+      },
+      "jpeg_compression": {
+        "AP": 0.04413,
+        "AP50": 0.08143399999999999
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.213668"
+  },
+  "ctcmt_det_mr_cs_c": {
+    "tag": "ctcmt_det_mr_cs_c",
+    "benchmark": "CS-C",
+    "description": "CT-CMT-Det, MkRCNN src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_det_mr_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.1696,
+      "n_datasets": 12
+    },
+    "per_dataset": {
+      "defocus_blur": {
+        "AP": 0.04979,
+        "AP50": 0.07637100000000001
+      },
+      "glass_blur": {
+        "AP": 0.054509,
+        "AP50": 0.085336
+      },
+      "motion_blur": {
+        "AP": 0.06707099999999999,
+        "AP50": 0.121655
+      },
+      "zoom_blur": {
+        "AP": 0.006372,
+        "AP50": 0.015776
+      },
+      "snow": {
+        "AP": 0.002073,
+        "AP50": 0.002888
+      },
+      "frost": {
+        "AP": 0.038502999999999996,
+        "AP50": 0.0632
+      },
+      "fog": {
+        "AP": 0.259768,
+        "AP50": 0.41281
+      },
+      "brightness": {
+        "AP": 0.188129,
+        "AP50": 0.301373
+      },
+      "contrast": {
+        "AP": 0.040153999999999995,
+        "AP50": 0.070592
+      },
+      "elastic_transform": {
+        "AP": 0.360524,
+        "AP50": 0.596669
+      },
+      "pixelate": {
+        "AP": 0.10190099999999999,
+        "AP50": 0.16169899999999998
+      },
+      "jpeg_compression": {
+        "AP": 0.072312,
+        "AP50": 0.126592
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.214145"
+  },
+  "ctcmt_seg_cs_c": {
+    "tag": "ctcmt_seg_cs_c",
+    "benchmark": "CS-C",
+    "description": "CT-CMT-Seg, PFN src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_seg_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.1806,
+      "n_datasets": 16
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.33136699999999997,
+        "AP50": 0.511057
+      },
+      "acdc_night": {
+        "AP": 0.077419,
+        "AP50": 0.152303
+      },
+      "acdc_rain": {
+        "AP": 0.18103100000000003,
+        "AP50": 0.31316900000000003
+      },
+      "acdc_snow": {
+        "AP": 0.207505,
+        "AP50": 0.36097999999999997
+      },
+      "defocus_blur": {
+        "AP": 0.042558,
+        "AP50": 0.067315
+      },
+      "glass_blur": {
+        "AP": 0.026337000000000003,
+        "AP50": 0.042488
+      },
+      "motion_blur": {
+        "AP": 0.059524999999999995,
+        "AP50": 0.100086
+      },
+      "zoom_blur": {
+        "AP": 0.00592,
+        "AP50": 0.011552
+      },
+      "snow": {
+        "AP": 0.001238,
+        "AP50": 0.0024749999999999998
+      },
+      "frost": {
+        "AP": 0.014783999999999999,
+        "AP50": 0.025259
+      },
+      "fog": {
+        "AP": 0.20793299999999998,
+        "AP50": 0.33236600000000005
+      },
+      "brightness": {
+        "AP": 0.115762,
+        "AP50": 0.169829
+      },
+      "contrast": {
+        "AP": 0.021684000000000002,
+        "AP50": 0.035827
+      },
+      "elastic_transform": {
+        "AP": 0.36642800000000003,
+        "AP50": 0.616479
+      },
+      "pixelate": {
+        "AP": 0.052194000000000004,
+        "AP50": 0.083748
+      },
+      "jpeg_compression": {
+        "AP": 0.035694,
+        "AP50": 0.064682
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.215137"
+  },
+  "ctcmt_mtl_cs_c": {
+    "tag": "ctcmt_mtl_cs_c",
+    "benchmark": "CS-C",
+    "description": "CT-CMT-MTL v4b, PFN src, CS\u2192CS-C",
+    "framework": "detectron2",
+    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/ctcmt_mtl_cs_c/log.txt",
+    "summary": {
+      "mean_AP50": 0.1943,
+      "n_datasets": 16
+    },
+    "per_dataset": {
+      "acdc_fog": {
+        "AP": 0.33299799999999996,
+        "AP50": 0.515512
+      },
+      "acdc_night": {
+        "AP": 0.080909,
+        "AP50": 0.160327
+      },
+      "acdc_rain": {
+        "AP": 0.196472,
+        "AP50": 0.339934
+      },
+      "acdc_snow": {
+        "AP": 0.237471,
+        "AP50": 0.41325
+      },
+      "defocus_blur": {
+        "AP": 0.047373000000000005,
+        "AP50": 0.073838
+      },
+      "glass_blur": {
+        "AP": 0.029171,
+        "AP50": 0.047138
+      },
+      "motion_blur": {
+        "AP": 0.062176999999999996,
+        "AP50": 0.105011
+      },
+      "zoom_blur": {
+        "AP": 0.0051459999999999995,
+        "AP50": 0.010331
+      },
+      "snow": {
+        "AP": 0.001547,
+        "AP50": 0.0024749999999999998
+      },
+      "frost": {
+        "AP": 0.021555,
+        "AP50": 0.03521
+      },
+      "fog": {
+        "AP": 0.21898399999999998,
+        "AP50": 0.349818
+      },
+      "brightness": {
+        "AP": 0.134169,
+        "AP50": 0.199935
+      },
+      "contrast": {
+        "AP": 0.030644,
+        "AP50": 0.050277
+      },
+      "elastic_transform": {
+        "AP": 0.35060899999999995,
+        "AP50": 0.582821
+      },
+      "pixelate": {
+        "AP": 0.070583,
+        "AP50": 0.11586600000000001
+      },
+      "jpeg_compression": {
+        "AP": 0.060246,
+        "AP50": 0.107083
+      }
+    },
+    "harvested_at": "2026-08-06T20:32:24.215985"
+  },
+  "trilit_det_amrod_acdc": {
+    "tag": "trilit_det_amrod_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet det-only, AMROD adapter",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_det_base_native__amrod__x1/summary.json",
+    "metrics": {
+      "global_miou": NaN,
+      "global_AP50": 0.03647997529368534,
+      "per_weather": {
+        "fog": {
+          "miou": NaN,
+          "AP50": 0.04543093810798965
+        },
+        "night": {
+          "miou": NaN,
+          "AP50": 0.014478953671461441
+        },
+        "rain": {
+          "miou": NaN,
+          "AP50": 0.04228254226057882
+        },
+        "snow": {
+          "miou": NaN,
+          "AP50": 0.058199438245641444
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.236512"
+  },
+  "trilit_seg_cotta_acdc": {
+    "tag": "trilit_seg_cotta_acdc",
+    "benchmark": "ACDC",
+    "description": "TriLiteNet seg-only, CoTTA adapter",
+    "framework": "trilitenet",
+    "summary_json": "/home/ilias/TriLiteNet/runs/ctta/cityscapes_seg_base_native__cotta__x1/summary.json",
+    "metrics": {
+      "global_miou": 0.14711907505989075,
+      "global_AP50": NaN,
+      "per_weather": {
+        "fog": {
+          "miou": 0.1756785362958908,
+          "AP50": NaN
+        },
+        "night": {
+          "miou": 0.12751175463199615,
+          "AP50": NaN
+        },
+        "rain": {
+          "miou": 0.14076805114746094,
+          "AP50": NaN
+        },
+        "snow": {
+          "miou": 0.132792666554451,
+          "AP50": NaN
+        }
+      },
+      "per_repeat": []
+    },
+    "harvested_at": "2026-08-06T20:32:24.236683"
+  }
+}
