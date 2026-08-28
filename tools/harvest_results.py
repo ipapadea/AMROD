@@ -306,10 +306,15 @@ D2_EXPERIMENTS = [
     ("ctcmt_mtl_cs_c",      "ctcmt_mtl_cs_c",      "CS-C",    "CT-CMT-MTL v4b, PFN src, CS→CS-C"),
     ("cotta_cs_c",          "cotta_cs_c",          "CS-C",    "CoTTA-Seg, PFN src, CS→CS-C"),
     # CS-C long-term (Table 3: 5 corruptions × 10 rounds)
-    ("amrod_cs_c_lt",          "amrod_cs_c_lt",          "CS-C-LT", "AMROD, MkRCNN src, CS→CS-C 5-corr long-term"),
-    ("amrod_official_cs_c_lt", "amrod_official_cs_c_lt", "CS-C-LT", "AMROD, official src, CS→CS-C 5-corr long-term"),
-    ("ctcmt_det_mr_cs_c_lt",   "ctcmt_det_mr_cs_c_lt",   "CS-C-LT", "CT-CMT-Det MkRCNN, CS→CS-C 5-corr long-term"),
-    ("ctcmt_mtl_cs_c_lt",      "ctcmt_mtl_cs_c_lt",      "CS-C-LT", "CT-CMT-MTL v4b, CS→CS-C 5-corr long-term"),
+    # ("amrod_cs_c_lt",          "amrod_cs_c_lt",          "CS-C-LT", "AMROD, MkRCNN src, CS→CS-C 5-corr long-term"),
+    # ("amrod_official_cs_c_lt", "amrod_official_cs_c_lt", "CS-C-LT", "AMROD, official src, CS→CS-C 5-corr long-term"),
+    # ("ctcmt_det_mr_cs_c_lt",   "ctcmt_det_mr_cs_c_lt",   "CS-C-LT", "CT-CMT-Det MkRCNN, CS→CS-C 5-corr long-term"),
+    # ("ctcmt_mtl_cs_c_lt",      "ctcmt_mtl_cs_c_lt",      "CS-C-LT", "CT-CMT-MTL v4b, CS→CS-C 5-corr long-term"),
+    ("amrod_cs_c_lt",          "amrod_cs_c_lt_x10",          "CS-C-LT", "AMROD, MkRCNN src, CS→CS-C 5-corr long-term"),
+    ("amrod_official_cs_c_lt", "amrod_official_cs_c_lt_x10", "CS-C-LT", "AMROD, official src, CS→CS-C 5-corr long-term"),
+    ("ctcmt_det_mr_cs_c_lt",   "ctcmt_det_mr_cs_c_lt_x10",   "CS-C-LT", "CT-CMT-Det MkRCNN, CS→CS-C 5-corr long-term"),
+    ("ctcmt_mtl_cs_c_lt",      "ctcmt_mtl_cs_c_lt_x10",      "CS-C-LT", "CT-CMT-MTL v4b, CS→CS-C 5-corr long-term"),
+
 ]
 
 TRILIT_EXPERIMENTS = [
