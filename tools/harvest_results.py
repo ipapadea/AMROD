@@ -306,15 +306,10 @@ D2_EXPERIMENTS = [
     ("ctcmt_mtl_cs_c",      "ctcmt_mtl_cs_c",      "CS-C",    "CT-CMT-MTL v4b, PFN src, CS→CS-C"),
     ("cotta_cs_c",          "cotta_cs_c",          "CS-C",    "CoTTA-Seg, PFN src, CS→CS-C"),
     # CS-C long-term (Table 3: 5 corruptions × 10 rounds)
-    # ("amrod_cs_c_lt",          "amrod_cs_c_lt",          "CS-C-LT", "AMROD, MkRCNN src, CS→CS-C 5-corr long-term"),
-    # ("amrod_official_cs_c_lt", "amrod_official_cs_c_lt", "CS-C-LT", "AMROD, official src, CS→CS-C 5-corr long-term"),
-    # ("ctcmt_det_mr_cs_c_lt",   "ctcmt_det_mr_cs_c_lt",   "CS-C-LT", "CT-CMT-Det MkRCNN, CS→CS-C 5-corr long-term"),
-    # ("ctcmt_mtl_cs_c_lt",      "ctcmt_mtl_cs_c_lt",      "CS-C-LT", "CT-CMT-MTL v4b, CS→CS-C 5-corr long-term"),
     ("amrod_cs_c_lt",          "amrod_cs_c_lt_x10",          "CS-C-LT", "AMROD, MkRCNN src, CS→CS-C 5-corr long-term"),
     ("amrod_official_cs_c_lt", "amrod_official_cs_c_lt_x10", "CS-C-LT", "AMROD, official src, CS→CS-C 5-corr long-term"),
     ("ctcmt_det_mr_cs_c_lt",   "ctcmt_det_mr_cs_c_lt_x10",   "CS-C-LT", "CT-CMT-Det MkRCNN, CS→CS-C 5-corr long-term"),
     ("ctcmt_mtl_cs_c_lt",      "ctcmt_mtl_cs_c_lt_x10",      "CS-C-LT", "CT-CMT-MTL v4b, CS→CS-C 5-corr long-term"),
-
 ]
 
 TRILIT_EXPERIMENTS = [
@@ -376,8 +371,9 @@ def _d2_protocol(tag: str, benchmark: str):
     return None, 1
 
 
-def harvest() -> Dict:
+def harvest():
     entries = {}
+    invalid_tags = set()
 
     # D2 experiments
     for tag, subdir, bench, desc in D2_EXPERIMENTS:
@@ -395,6 +391,9 @@ def harvest() -> Dict:
                 "per_dataset": parsed,
                 "harvested_at": datetime.utcnow().isoformat(),
             }
+        elif logf.is_file() and cycle is not None:
+            # Log exists, explicit protocol defined, but no valid complete run found.
+            invalid_tags.add(tag)
 
     # TriLiteNet experiments
     for tag, run_name, bench, desc in TRILIT_EXPERIMENTS:
@@ -411,7 +410,7 @@ def harvest() -> Dict:
                 "harvested_at": datetime.utcnow().isoformat(),
             }
 
-    return entries
+    return entries, invalid_tags
 
 
 def pretty_print(registry: Dict, filter_str: Optional[str] = None) -> None:
@@ -452,7 +451,16 @@ def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     existing = json.loads(REGISTRY_FILE.read_text()) if REGISTRY_FILE.is_file() else {}
 
-    harvested = harvest()
+    harvested, invalid_tags = harvest()
+
+    for tag in sorted(invalid_tags):
+        if tag in existing:
+            print(
+                f"[harvest] Removing stale entry '{tag}': "
+                "existing log does not contain a complete valid protocol."
+            )
+            existing.pop(tag)
+
     existing.update(harvested)
 
     REGISTRY_FILE.write_text(json.dumps(existing, indent=2))

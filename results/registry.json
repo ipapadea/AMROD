@@ -27,7 +27,7 @@
         "AP50": 0.40986199999999995
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.986204"
+    "harvested_at": "2026-08-28T08:59:31.472488"
   },
   "ctcmt_det_acdc": {
     "tag": "ctcmt_det_acdc",
@@ -57,7 +57,7 @@
         "AP50": 0.613559
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.986911"
+    "harvested_at": "2026-08-28T08:59:31.473231"
   },
   "ctcmt_seg_acdc": {
     "tag": "ctcmt_seg_acdc",
@@ -87,7 +87,7 @@
         "AP50": 0.59848
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.987249"
+    "harvested_at": "2026-08-28T08:59:31.473552"
   },
   "ctcmt_mtl_acdc": {
     "tag": "ctcmt_mtl_acdc",
@@ -117,7 +117,7 @@
         "AP50": 0.643586
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.988598"
+    "harvested_at": "2026-08-28T08:59:31.474974"
   },
   "amrod_x10": {
     "tag": "amrod_x10",
@@ -326,7 +326,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T08:29:19.989881"
+    "harvested_at": "2026-08-28T08:59:31.476203"
   },
   "ctcmt_det_x10": {
     "tag": "ctcmt_det_x10",
@@ -535,7 +535,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T08:29:19.991156"
+    "harvested_at": "2026-08-28T08:59:31.477435"
   },
   "ctcmt_v4b_x10": {
     "tag": "ctcmt_v4b_x10",
@@ -744,7 +744,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T08:29:19.992903"
+    "harvested_at": "2026-08-28T08:59:31.479191"
   },
   "amrod_shift": {
     "tag": "amrod_shift",
@@ -774,7 +774,7 @@
         "AP50": 0.256644
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.993335"
+    "harvested_at": "2026-08-28T08:59:31.479586"
   },
   "ctcmt_det_shift": {
     "tag": "ctcmt_det_shift",
@@ -804,7 +804,7 @@
         "AP50": 0.200114
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.994059"
+    "harvested_at": "2026-08-28T08:59:31.480288"
   },
   "trilit_source_acdc": {
     "tag": "trilit_source_acdc",
@@ -835,7 +835,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.021117"
+    "harvested_at": "2026-08-28T08:59:31.505221"
   },
   "trilit_amrod_acdc": {
     "tag": "trilit_amrod_acdc",
@@ -866,7 +866,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.021287"
+    "harvested_at": "2026-08-28T08:59:31.505387"
   },
   "trilit_ctcmt_acdc": {
     "tag": "trilit_ctcmt_acdc",
@@ -897,7 +897,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.021431"
+    "harvested_at": "2026-08-28T08:59:31.505531"
   },
   "trilit_ctcmt_x10": {
     "tag": "trilit_ctcmt_x10",
@@ -1019,7 +1019,7 @@
         }
       ]
     },
-    "harvested_at": "2026-08-28T08:29:20.021657"
+    "harvested_at": "2026-08-28T08:59:31.505761"
   },
   "trilit_ctcmt_det_acdc": {
     "tag": "trilit_ctcmt_det_acdc",
@@ -1050,7 +1050,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.021790"
+    "harvested_at": "2026-08-28T08:59:31.505896"
   },
   "trilit_ctcmt_seg_acdc": {
     "tag": "trilit_ctcmt_seg_acdc",
@@ -1081,7 +1081,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.021916"
+    "harvested_at": "2026-08-28T08:59:31.506023"
   },
   "trilit_ctcmt_mtl_acdc": {
     "tag": "trilit_ctcmt_mtl_acdc",
@@ -1112,100 +1112,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.022035"
-  },
-  "amrod_cs_c": {
-    "tag": "amrod_cs_c",
-    "benchmark": "CS-C",
-    "description": "AMROD, MkRCNN-ours src, CS\u2192CS-C",
-    "framework": "detectron2",
-    "log": "/data/ilias/panoptic_fpn/output/ctta_acdc/amrod_cs_c/log.txt",
-    "summary": {
-      "mean_AP50": 0.2362,
-      "n_rounds": 2,
-      "n_datasets_per_round": 1,
-      "round_mean_AP50": [
-        0.5118,
-        0.219
-      ]
-    },
-    "per_dataset": {
-      "__per_repeat__": [
-        {
-          "acdc_fog": {
-            "AP": 0.33374899999999996,
-            "AP50": 0.511788
-          }
-        },
-        {
-          "acdc_fog": {
-            "AP": 0.338455,
-            "AP50": 0.520156
-          },
-          "acdc_night": {
-            "AP": 0.08035600000000001,
-            "AP50": 0.160999
-          },
-          "acdc_rain": {
-            "AP": 0.19713799999999998,
-            "AP50": 0.34387799999999996
-          },
-          "acdc_snow": {
-            "AP": 0.234708,
-            "AP50": 0.41322600000000004
-          },
-          "defocus_blur": {
-            "AP": 0.049690000000000005,
-            "AP50": 0.07748000000000001
-          },
-          "glass_blur": {
-            "AP": 0.050906,
-            "AP50": 0.081524
-          },
-          "motion_blur": {
-            "AP": 0.063736,
-            "AP50": 0.113093
-          },
-          "zoom_blur": {
-            "AP": 0.004850999999999999,
-            "AP50": 0.011557
-          },
-          "snow": {
-            "AP": 0.002202,
-            "AP50": 0.002888
-          },
-          "frost": {
-            "AP": 0.036515,
-            "AP50": 0.061287
-          },
-          "fog": {
-            "AP": 0.26975899999999997,
-            "AP50": 0.43498800000000004
-          },
-          "brightness": {
-            "AP": 0.210954,
-            "AP50": 0.34153500000000003
-          },
-          "contrast": {
-            "AP": 0.047889,
-            "AP50": 0.083423
-          },
-          "elastic_transform": {
-            "AP": 0.36140500000000003,
-            "AP50": 0.598431
-          },
-          "pixelate": {
-            "AP": 0.087778,
-            "AP50": 0.1365
-          },
-          "jpeg_compression": {
-            "AP": 0.06816799999999999,
-            "AP50": 0.12283
-          }
-        }
-      ]
-    },
-    "harvested_at": "2026-08-28T06:36:02.078309"
+    "harvested_at": "2026-08-28T08:59:31.506145"
   },
   "amrod_official_cs_c": {
     "tag": "amrod_official_cs_c",
@@ -1267,7 +1174,7 @@
         "AP50": 0.158101
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.998203"
+    "harvested_at": "2026-08-28T08:59:31.482151"
   },
   "ctcmt_det_cs_c": {
     "tag": "ctcmt_det_cs_c",
@@ -1329,7 +1236,7 @@
         "AP50": 0.08143399999999999
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.998959"
+    "harvested_at": "2026-08-28T08:59:31.482916"
   },
   "ctcmt_det_mr_cs_c": {
     "tag": "ctcmt_det_mr_cs_c",
@@ -1391,7 +1298,7 @@
         "AP50": 0.126592
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.999415"
+    "harvested_at": "2026-08-28T08:59:31.483403"
   },
   "ctcmt_seg_cs_c": {
     "tag": "ctcmt_seg_cs_c",
@@ -1453,7 +1360,7 @@
         "AP50": 0.064682
       }
     },
-    "harvested_at": "2026-08-28T08:29:20.000370"
+    "harvested_at": "2026-08-28T08:59:31.484306"
   },
   "ctcmt_mtl_cs_c": {
     "tag": "ctcmt_mtl_cs_c",
@@ -1515,7 +1422,7 @@
         "AP50": 0.107083
       }
     },
-    "harvested_at": "2026-08-28T08:29:20.001199"
+    "harvested_at": "2026-08-28T08:59:31.485094"
   },
   "trilit_det_amrod_acdc": {
     "tag": "trilit_det_amrod_acdc",
@@ -1546,7 +1453,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.022151"
+    "harvested_at": "2026-08-28T08:59:31.506280"
   },
   "trilit_seg_cotta_acdc": {
     "tag": "trilit_seg_cotta_acdc",
@@ -1577,7 +1484,7 @@
       },
       "per_repeat": []
     },
-    "harvested_at": "2026-08-28T08:29:20.022321"
+    "harvested_at": "2026-08-28T08:59:31.506451"
   },
   "source_foggy": {
     "tag": "source_foggy",
@@ -1595,7 +1502,7 @@
         "AP50": 0.34043500000000004
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.995695"
+    "harvested_at": "2026-08-28T08:59:31.480508"
   },
   "amrod_v2_foggy": {
     "tag": "amrod_v2_foggy",
@@ -1613,6 +1520,6 @@
         "AP50": 0.355822
       }
     },
-    "harvested_at": "2026-08-28T08:29:19.996775"
+    "harvested_at": "2026-08-28T08:59:31.480779"
   }
 }
