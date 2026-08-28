@@ -148,6 +148,12 @@ case "$TRACK" in
   ctcmt_v2_foggy_mtl)
     CFG="detectron2/configs/Cityscapes/ctcmt_v2_foggy_cityscapes_mtl.yaml"
     ;;
+  ctcmt_v4b_foggy_mtl)
+    CFG="detectron2/configs/Cityscapes/ctcmt_v4b_foggy_cityscapes_mtl.yaml"
+    ;;
+  ctcmt_det_mr_foggy)
+    CFG="detectron2/configs/Cityscapes/ctcmt_det_mr_foggy_cityscapes.yaml"
+    ;;
   ctcmt_mtl_ctcl_no_v2_seed0)
     CFG="detectron2/configs/Cityscapes/ctcmt_mtl_ctcl_no_v2_seed0_pfn_R_50_ACDC.yaml"
     ;;
@@ -283,6 +289,19 @@ case "$TRACK" in
   ctcmt_loopback_det_mr_seed123)
     CFG="detectron2/configs/Cityscapes/ctcmt_loopback_det_mr_seed123_R_50_ACDC.yaml"
     ;;
+  # ---- Cityscapes-C long-term (Table 3: 5 corruptions × 10 rounds) ----
+  amrod_cs_c_lt)
+    CFG="detectron2/configs/Cityscapes/amrod_mask_rcnn_R_50_CS_C.yaml"
+    ;;
+  ctcmt_det_mr_cs_c_lt)
+    CFG="detectron2/configs/Cityscapes/ctcmt_det_mr_R_50_CS_C.yaml"
+    ;;
+  ctcmt_mtl_cs_c_lt)
+    CFG="detectron2/configs/Cityscapes/ctcmt_mtl_R_50_CS_C.yaml"
+    ;;
+  amrod_official_cs_c_lt)
+    CFG="detectron2/configs/Cityscapes/amrod_official_R_50_CS_C.yaml"
+    ;;
   *) echo "unknown track $TRACK"; exit 1 ;;
 esac
 
@@ -293,9 +312,11 @@ OUT_ROOT="/workspace/output/ctta_acdc/${TRACK}"
 # Only ACDC tracks support the multi-round repeat mechanism.
 # SHIFT / foggy / loopback / CS-C tracks must use the TEST sequence from their own config.
 IS_CS_C=false
+IS_CS_C_LT=false   # CS-C long-term: uses CS-C mounts + 5-corruption repeat cycle
 IS_SHIFT=false
 IS_FOGGY=false
-[[ "$TRACK" == *_cs_c ]]    && IS_CS_C=true
+[[ "$TRACK" == *_cs_c_lt ]] && IS_CS_C=true && IS_CS_C_LT=true
+[[ "$TRACK" == *_cs_c && "$TRACK" != *_cs_c_lt ]] && IS_CS_C=true
 [[ "$TRACK" == *_shift* ]] && IS_SHIFT=true
 [[ "$TRACK" == *_foggy* || "$TRACK" == *foggy* ]] && IS_FOGGY=true
 [[ "$TRACK" == *loopback* ]] && IS_FOGGY=true   # loopbacks append CS val — keep as-is
@@ -304,8 +325,18 @@ IS_ACDC=true
 
 # Build repeated DATASETS.TEST only for ACDC tracks with NUM_REPEATS > 1.
 # For single-round ACDC the config's own TEST is identical and no override is needed.
+# CS-C long-term (Table 3) uses a 5-corruption subset of CS-C with NUM_REPEATS rounds.
 DATASETS_TEST_ARG=""
-if $IS_ACDC && [ "$NUM_REPEATS" -gt 1 ]; then
+if $IS_CS_C_LT && [ "$NUM_REPEATS" -gt 1 ]; then
+  # Table 3 cycle: fog -> motion_blur -> snow -> brightness -> defocus_blur
+  DATASETS_TEST=$(python3 -c "
+n = int('${NUM_REPEATS}')
+cycle = ['fog','motion_blur','snow','brightness','defocus_blur']
+entries = ','.join(f'\"{{w}}\"' for w in cycle * n)
+print(f'({{entries}})')
+")
+  DATASETS_TEST_ARG="DATASETS.TEST '${DATASETS_TEST}'"
+elif $IS_ACDC && [ "$NUM_REPEATS" -gt 1 ]; then
   DATASETS_TEST=$(python3 -c "
 n = int('${NUM_REPEATS}')
 cycle = ['acdc_fog','acdc_night','acdc_rain','acdc_snow']

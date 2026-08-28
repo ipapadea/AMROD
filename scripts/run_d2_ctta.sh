@@ -20,9 +20,10 @@
 #                       ctcmt-mtl    CT-CMT MTL v4b, Panoptic FPN source
 #                       cotta        CoTTA seg, Panoptic FPN source
 #   --bench BENCH     Benchmark:
-#                       acdc         Cityscapes → ACDC (fog/night/rain/snow)
-#                       cs-c         Cityscapes → Cityscapes-C (12 corruptions)
-#                       shift        Cityscapes → SHIFT (cloudy/overcast/rainy/foggy)
+#                       acdc         Cityscapes → ACDC (fog/night/rain/snow), 1 or 10 rounds (Table 5)
+#                       cs-c         Cityscapes → Cityscapes-C (12 corruptions, 1 round)  (Table 2)
+#                       cs-c-lt      Cityscapes → Cityscapes-C (5 corruptions × 10 rounds) (Table 3)
+#                       shift        Cityscapes → SHIFT (4 conditions, 1 round)            (Table 4)
 #                       foggy        Cityscapes → Foggy Cityscapes
 #   --repeats N       CTTA rounds for ACDC: 1=short task, 10=long-term (default: 1)
 #                     (cs-c and shift use their own fixed sequences)
@@ -78,13 +79,20 @@ case "${METHOD}__${BENCH}" in
     ctcmt-seg__cs-c)    TRACK="ctcmt_seg_cs_c" ;;
     ctcmt-mtl__cs-c)    TRACK="ctcmt_mtl_cs_c" ;;
     cotta__cs-c)        TRACK="cotta_cs_c" ;;
+    # CS-C long-term (Table 3): 5 corruptions × REPEATS rounds
+    amrod__cs-c-lt)     TRACK="amrod_cs_c_lt" ;;
+    amrod-off__cs-c-lt) TRACK="amrod_official_cs_c_lt" ;;
+    ctcmt-det__cs-c-lt) TRACK="ctcmt_det_mr_cs_c_lt" ;;
+    ctcmt-mtl__cs-c-lt) TRACK="ctcmt_mtl_cs_c_lt" ;;
     amrod__shift)       TRACK="amrod_shift" ;;
     ctcmt-det__shift)   TRACK="ctcmt_det_shift" ;;
     amrod__foggy)       TRACK="amrod_foggy" ;;
-    ctcmt-mtl__foggy)   TRACK="ctcmt_v2_foggy" ;;
+    amrod-off__foggy)   TRACK="amrod_foggy" ;;   # same arch; official weights don't have a foggy variant
+    ctcmt-det__foggy)   TRACK="ctcmt_det_mr_foggy" ;;
+    ctcmt-mtl__foggy)   TRACK="ctcmt_v4b_foggy_mtl" ;;   # best MTL config
     *)
         echo "ERROR: unsupported method='$METHOD' + bench='$BENCH' combination."
-        echo "Supported: amrod/amrod-off/ctcmt-det/ctcmt-seg/ctcmt-mtl/cotta  ×  acdc/cs-c/shift/foggy"
+        echo "Supported: amrod/amrod-off/ctcmt-det/ctcmt-seg/ctcmt-mtl/cotta  ×  acdc/cs-c/cs-c-lt/shift/foggy"
         exit 1
         ;;
 esac

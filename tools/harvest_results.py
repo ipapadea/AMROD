@@ -165,6 +165,13 @@ D2_EXPERIMENTS = [
     ("ctcmt_v4b_x10",       "ctcmt_v4b_x10",       "ACDC-10", "CT-CMT-MTL v4b long-term 10-round"),
     ("amrod_shift",         "amrod_shift",         "SHIFT",   "AMROD, Cityscapes→SHIFT"),
     ("ctcmt_det_shift",     "ctcmt_det_shift",     "SHIFT",   "CT-CMT-Det, Cityscapes→SHIFT"),
+    # Foggy Cityscapes
+    ("source_foggy",        "source_only_foggy",   "Foggy",   "Source-only, Cityscapes→FoggyCS"),
+    ("amrod_foggy",         "amrod_foggy_cs",      "Foggy",   "AMROD, Cityscapes→FoggyCS"),
+    ("amrod_v2_foggy",      "amrod_v2_foggy",      "Foggy",   "AMROD+V2, Cityscapes→FoggyCS"),
+    ("ctcmt_v2_foggy_mtl",  "ctcmt_v2_foggy_mtl",  "Foggy",   "CT-CMT-MTL v2, Cityscapes→FoggyCS"),
+    ("ctcmt_v4b_foggy_mtl", "ctcmt_v4b_foggy_mtl", "Foggy",   "CT-CMT-MTL v4b (best), Cityscapes→FoggyCS"),
+    ("ctcmt_det_mr_foggy",  "ctcmt_det_mr_foggy",  "Foggy",   "CT-CMT-Det MkRCNN src, Cityscapes→FoggyCS"),
     # Cityscapes-C (output lands in ctta_acdc/<track_name>/ due to OUT_ROOT override)
     ("amrod_cs_c",          "amrod_cs_c",          "CS-C",    "AMROD, MkRCNN-ours src, CS→CS-C"),
     ("amrod_official_cs_c", "amrod_official_cs_c", "CS-C",    "AMROD, official src, CS→CS-C"),
@@ -173,6 +180,11 @@ D2_EXPERIMENTS = [
     ("ctcmt_seg_cs_c",      "ctcmt_seg_cs_c",      "CS-C",    "CT-CMT-Seg, PFN src, CS→CS-C"),
     ("ctcmt_mtl_cs_c",      "ctcmt_mtl_cs_c",      "CS-C",    "CT-CMT-MTL v4b, PFN src, CS→CS-C"),
     ("cotta_cs_c",          "cotta_cs_c",          "CS-C",    "CoTTA-Seg, PFN src, CS→CS-C"),
+    # CS-C long-term (Table 3: 5 corruptions × 10 rounds)
+    ("amrod_cs_c_lt",          "amrod_cs_c_lt",          "CS-C-LT", "AMROD, MkRCNN src, CS→CS-C 5-corr long-term"),
+    ("amrod_official_cs_c_lt", "amrod_official_cs_c_lt", "CS-C-LT", "AMROD, official src, CS→CS-C 5-corr long-term"),
+    ("ctcmt_det_mr_cs_c_lt",   "ctcmt_det_mr_cs_c_lt",   "CS-C-LT", "CT-CMT-Det MkRCNN, CS→CS-C 5-corr long-term"),
+    ("ctcmt_mtl_cs_c_lt",      "ctcmt_mtl_cs_c_lt",      "CS-C-LT", "CT-CMT-MTL v4b, CS→CS-C 5-corr long-term"),
 ]
 
 TRILIT_EXPERIMENTS = [
