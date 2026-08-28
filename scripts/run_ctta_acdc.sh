@@ -296,6 +296,9 @@ case "$TRACK" in
   ctcmt_det_mr_cs_c_lt)
     CFG="detectron2/configs/Cityscapes/ctcmt_det_mr_R_50_CS_C.yaml"
     ;;
+  ctcmt_seg_cs_c_lt)
+    CFG="detectron2/configs/Cityscapes/ctcmt_seg_only_R_50_CS_C.yaml"
+    ;;
   ctcmt_mtl_cs_c_lt)
     CFG="detectron2/configs/Cityscapes/ctcmt_mtl_R_50_CS_C.yaml"
     ;;

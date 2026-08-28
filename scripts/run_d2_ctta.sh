@@ -90,6 +90,7 @@ case "${METHOD}__${BENCH}" in
     amrod__cs-c-lt)     TRACK="amrod_cs_c_lt" ;;
     amrod-off__cs-c-lt) TRACK="amrod_official_cs_c_lt" ;;
     ctcmt-det__cs-c-lt) TRACK="ctcmt_det_mr_cs_c_lt" ;;
+    ctcmt-seg__cs-c-lt) TRACK="ctcmt_seg_cs_c_lt" ;;
     ctcmt-mtl__cs-c-lt) TRACK="ctcmt_mtl_cs_c_lt" ;;
     amrod__shift)       TRACK="amrod_shift" ;;
     ctcmt-det__shift)   TRACK="ctcmt_det_shift" ;;
