@@ -24,7 +24,7 @@ from detectron2.data import DatasetCatalog, MetadataCatalog
 from .builtin_meta import ADE20K_SEM_SEG_CATEGORIES, _get_builtin_metadata
 from .cityscapes import load_cityscapes_instances, load_cityscapes_semantic
 from .cityscapes_panoptic import register_all_cityscapes_panoptic
-from .coco import load_sem_seg, register_coco_instances
+from .coco import load_coco_json, load_sem_seg, register_coco_instances
 from .coco_panoptic import register_coco_panoptic, register_coco_panoptic_separated
 from .lvis import get_lvis_instances_meta, register_lvis_instances
 from .pascal_voc import register_pascal_voc
@@ -248,28 +248,131 @@ def register_all_ade20k(root):
         )
 
 def register_cityscapes_c(root):
-    corruption_types = ["gaussian_noise", "shot_noise", "impulse_noise", "defocus_blur", "glass_blur", 
-                        "motion_blur", "zoom_blur", "snow", "frost", "fog", "brightness", "contrast", 
-                        "elastic_transform", "pixelate", "jpeg_compression"]
-    
-    # corruption_types = ["fog", "motion_blur", "snow", "brightness", "defocus_blur"]
+    """
+    Register Cityscapes-C in three views:
+
+      <corruption>         : detection-only COCO dataset (legacy name)
+      <corruption>_semseg  : semantic-segmentation dataset
+      <corruption>_mtl     : detection + semantic segmentation
+
+    Cityscapes-C images preserve the original Cityscapes filenames, therefore
+    the clean Cityscapes val labelTrainIds are also the correct semantic GT.
+    """
+    corruption_types = [
+        "gaussian_noise", "shot_noise", "impulse_noise",
+        "defocus_blur", "glass_blur", "motion_blur", "zoom_blur",
+        "snow", "frost", "fog", "brightness", "contrast",
+        "elastic_transform", "pixelate", "jpeg_compression",
+    ]
+
     cityscapes_root = os.path.join(root, "cityscapes")
+    gt_root = os.path.join(cityscapes_root, "gtFine", "val")
+    json_file = os.path.join(
+        cityscapes_root,
+        "annotations",
+        "instancesonly_filtered_gtFine_val.json",
+    )
+
+    cityscapes_meta = _get_builtin_metadata("cityscapes")
+
     for corrupt_type in corruption_types:
         corrupt_root = os.path.join(root, corrupt_type)
-        register_coco_instances(corrupt_type,{},cityscapes_root + "/annotations/instancesonly_filtered_gtFine_val.json", corrupt_root)
-        # if corrupt_type in ["fog", "motion_blur", "snow", "brightness", "defocus_blur"]:
-        #     image_dir = corrupt_root+ "/leftImg8bit/val/"
-        #     gt_dir = cityscapes_root+ "/gtFine/val/"
-        #     dataset_name = "c_"+corrupt_type
-        #     DatasetCatalog.register(
-        #             dataset_name,
-        #             lambda x = image_dir, y=gt_dir: load_cityscapes_instances(
-        #                 x, y, from_json=True, to_polygons=True
-        #             ),
-        #         )
-        #     MetadataCatalog.get(dataset_name).set(
-        #         image_dir=image_dir, gt_dir=gt_dir, evaluator_type="coco", thing_classes=['person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle', 'bicycle'], year = 2012
-        #     )
+        image_root = os.path.join(corrupt_root, "leftImg8bit", "val")
+
+        # ------------------------------------------------------------------
+        # 1. Legacy detection-only registration.
+        # Keep this exact name/behaviour for all previous experiments.
+        # ------------------------------------------------------------------
+        register_coco_instances(
+            corrupt_type,
+            {},
+            json_file,
+            corrupt_root,
+        )
+
+        # ------------------------------------------------------------------
+        # 2. Semantic-segmentation view.
+        # ------------------------------------------------------------------
+        semseg_name = f"{corrupt_type}_semseg"
+
+        DatasetCatalog.register(
+            semseg_name,
+            lambda image_root=image_root, gt_root=gt_root:
+                load_cityscapes_semantic(image_root, gt_root),
+        )
+
+        MetadataCatalog.get(semseg_name).set(
+            image_dir=image_root,
+            gt_dir=gt_root,
+            image_root=image_root,
+            sem_seg_root=gt_root,
+            evaluator_type="sem_seg",
+            ignore_label=255,
+            stuff_classes=list(cityscapes_meta["stuff_classes"]),
+        )
+
+        # ------------------------------------------------------------------
+        # 3. Multi-task view: COCO bbox records + Cityscapes semantic GT.
+        # ------------------------------------------------------------------
+        mtl_name = f"{corrupt_type}_mtl"
+
+        def _load_cityscapes_c_mtl(
+            json_file=json_file,
+            corrupt_root=corrupt_root,
+            gt_root=gt_root,
+            dataset_name=mtl_name,
+        ):
+            dicts = load_coco_json(
+                json_file,
+                corrupt_root,
+                dataset_name=dataset_name,
+            )
+
+            missing = []
+            for d in dicts:
+                basename = os.path.basename(d["file_name"])
+                suffix = "_leftImg8bit.png"
+
+                if not basename.endswith(suffix):
+                    missing.append(d["file_name"])
+                    continue
+
+                stem = basename[:-len(suffix)]
+                city = stem.split("_", 1)[0]
+
+                sem_seg_file = os.path.join(
+                    gt_root,
+                    city,
+                    f"{stem}_gtFine_labelTrainIds.png",
+                )
+
+                if not os.path.isfile(sem_seg_file):
+                    missing.append(sem_seg_file)
+                    continue
+
+                d["sem_seg_file_name"] = sem_seg_file
+
+            if missing:
+                preview = "\n".join(str(x) for x in missing[:5])
+                raise FileNotFoundError(
+                    f"{dataset_name}: missing semantic GT for "
+                    f"{len(missing)} records. First entries:\n{preview}"
+                )
+
+            return dicts
+
+        DatasetCatalog.register(mtl_name, _load_cityscapes_c_mtl)
+
+        MetadataCatalog.get(mtl_name).set(
+            thing_classes=list(cityscapes_meta["thing_classes"]),
+            stuff_classes=list(cityscapes_meta["stuff_classes"]),
+            json_file=json_file,
+            image_root=corrupt_root,
+            sem_seg_root=gt_root,
+            evaluator_type="coco_sem_seg",
+            ignore_label=255,
+        )
+
 
 def register_ACDC(root):
     register_ACDC_instances("acdc_fog", root+"/ACDC/gt_detection/fog/instancesonly_fog_train_gt_detection.json", root+"/ACDC/rgb_anon")
