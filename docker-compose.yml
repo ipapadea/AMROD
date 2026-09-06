@@ -1,0 +1,37 @@
+# AMROD reproduction environment (Decision 1B + 2b).
+# Attach with: docker compose -f /home/ilias/AMROD/docker-compose.yml run --rm amrod
+#
+# NB: /data/vgcmt/downloads is mounted read-only so the AMROD D2 ckpt symlink
+# at /data/vgcmt/models/amrod_d2/cityscapes_train_final.pth resolves inside
+# the container.
+
+services:
+  amrod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_UID: "${HOST_UID:-1000}"
+        USER_GID: "${HOST_GID:-1000}"
+    image: amrod:latest
+    hostname: amrod
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    working_dir: /workspace/AMROD
+    shm_size: "16gb"
+    ipc: host
+    environment:
+      TORCH_CUDA_ARCH_LIST: "8.9"
+      PYTHONPATH: /workspace/AMROD
+    volumes:
+      - .:/workspace/AMROD
+      - /data/vgcmt/datasets:/data/vgcmt/datasets
+      - /data/vgcmt/models:/data/vgcmt/models
+      - /data/vgcmt/work_dirs:/data/vgcmt/work_dirs
+      - /data/vgcmt/downloads:/data/vgcmt/downloads:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
