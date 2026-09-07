@@ -579,6 +579,13 @@ _C.SOLVER.CTCMT_WEIGHT_DET = 1.0
 _C.SOLVER.CTCMT_WEIGHT_SEG = 1.0
 _C.SOLVER.CTCMT_WEIGHT_CTCL = 0.01
 _C.SOLVER.CTCMT_WEIGHT_CTCR = 0.0
+# CT-CR spatial supervision modes.
+# "full_box" preserves the legacy reproduction path exactly.
+# "hard_seg" keeps only teacher-semantic-supported pixels in each bbox.
+# "soft_seg" weights bbox pixels by teacher semantic probability.
+_C.SOLVER.CTCMT_CTCR_MODE = "full_box"
+_C.SOLVER.CTCMT_CTCR_MASK_THRESH = 0.3
+_C.SOLVER.CTCMT_CTCR_WEIGHT_FLOOR = 0.2
 _C.SOLVER.CTCMT_CTCL_ENABLED = True
 _C.SOLVER.CTCMT_CTCL_SEG_VIEW = True
 _C.SOLVER.CTCMT_CTCL_TEMPERATURE = 0.07

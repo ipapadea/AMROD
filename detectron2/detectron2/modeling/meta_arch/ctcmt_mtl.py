@@ -41,7 +41,13 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Dict, List, Sequence
 
+import json
 import math
+import os
+
+import numpy as np
+from PIL import Image
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -168,6 +174,35 @@ class CTCMT_MTL(nn.Module):
         # Cross-task consistency regularizer: pixels inside a teacher-detected
         # bbox should be classified by the student seg head as that box's class.
         self.weight_ctcr = float(getattr(cfg.SOLVER, "CTCMT_WEIGHT_CTCR", 0.0))
+
+        # CT-CR spatial supervision mode.
+        self.ctcr_mode = str(
+            getattr(cfg.SOLVER, "CTCMT_CTCR_MODE", "full_box")
+        ).lower()
+        self.ctcr_mask_thresh = float(
+            getattr(cfg.SOLVER, "CTCMT_CTCR_MASK_THRESH", 0.3)
+        )
+        self.ctcr_weight_floor = float(
+            getattr(cfg.SOLVER, "CTCMT_CTCR_WEIGHT_FLOOR", 0.2)
+        )
+
+        _valid_ctcr_modes = {"full_box", "hard_seg", "soft_seg"}
+        if self.ctcr_mode not in _valid_ctcr_modes:
+            raise ValueError(
+                f"Unsupported CTCMT_CTCR_MODE={self.ctcr_mode!r}; "
+                f"expected one of {sorted(_valid_ctcr_modes)}"
+            )
+        if not 0.0 <= self.ctcr_mask_thresh <= 1.0:
+            raise ValueError(
+                "CTCMT_CTCR_MASK_THRESH must be in [0, 1], got "
+                f"{self.ctcr_mask_thresh}"
+            )
+        if not 0.0 <= self.ctcr_weight_floor <= 1.0:
+            raise ValueError(
+                "CTCMT_CTCR_WEIGHT_FLOOR must be in [0, 1], got "
+                f"{self.ctcr_weight_floor}"
+            )
+
         # Single-task ablation switches: disable one task branch entirely so
         # this meta-arch degenerates to a fair single-task-on-MTL-source baseline.
         self.det_only = bool(getattr(cfg.SOLVER, "CTCMT_DET_ONLY", False))
@@ -239,6 +274,41 @@ class CTCMT_MTL(nn.Module):
         self._backbone_source_norm = None   # cached lazily after _source_params snapshot
 
         self.iter = 0
+        # ---------------------------------------------------------------
+        # Optional diagnostics.
+        #
+        # Pure logging only: does not affect adaptation behavior.
+        # Enable with:
+        #
+        #   CTCMT_DIAG_JSONL=/workspace/output/.../ctpv_trace.jsonl
+        #
+        # ---------------------------------------------------------------
+        self.diag_jsonl = os.environ.get("CTCMT_DIAG_JSONL", "").strip()
+        self._diag_raw_teacher_n = 0
+        self._diag_after_dyn_n = 0
+
+        # Optional diagnostic-only semantic GT access for masked CT-CR analysis.
+        # IMPORTANT: GT is used only to compute logging statistics. It is never
+        # used by a loss, gate, pseudo-label filter, optimizer step, EMA update,
+        # or stochastic restoration.
+        self.mask_diag_gt_root = os.environ.get("CTCMT_MASK_DIAG_GT_ROOT", "").strip()
+        self.mask_diag_thresholds = tuple(
+            float(x) for x in os.environ.get(
+                "CTCMT_MASK_DIAG_THRESHOLDS", "0.1,0.2,0.3,0.5,0.7,0.9"
+            ).split(",") if x.strip()
+        )
+        self._mask_diag_gt_index = {}
+        if self.mask_diag_gt_root:
+            try:
+                for dirpath, _, filenames in os.walk(self.mask_diag_gt_root):
+                    for fn in filenames:
+                        suffix = "_gtFine_labelTrainIds.png"
+                        if fn.endswith(suffix):
+                            key = fn[:-len(suffix)]
+                            self._mask_diag_gt_index[key] = os.path.join(dirpath, fn)
+            except Exception as exc:
+                print(f"[CT-CMT-DIAG] failed to index semantic GT: {exc}")
+                self._mask_diag_gt_index = {}
 
         # Snapshot every trainable weight/bias in the anchor for stochastic restore.
         self._source_params: Dict[str, torch.Tensor] = {}
@@ -313,12 +383,17 @@ class CTCMT_MTL(nn.Module):
         else:
             detector_results, sem_seg_results = teacher_out, None
         inst = detector_results[0]
+        self._diag_raw_teacher_n = int(len(inst))
         if len(inst) == 0:
+            self._diag_after_dyn_n = 0
             return detector_results, sem_seg_results, False
 
         # Score-EM gate: skip step if teacher confidence is stable.
         valid_mask = inst.scores > 0.1
         if not valid_mask.any():
+            # No dynamic-threshold filtering is applied on this early-return path,
+            # so the returned pseudo set is the raw detector result.
+            self._diag_after_dyn_n = int(len(detector_results[0]))
             return detector_results, sem_seg_results, False
         mean_all = float(inst.scores[valid_mask].mean().cpu())
         keep_step = True
@@ -362,6 +437,7 @@ class CTCMT_MTL(nn.Module):
         for k in inst.get_fields():
             if k not in ("pred_boxes", "pred_classes", "scores"):
                 filtered.set(k, inst.get(k)[keep])
+        self._diag_after_dyn_n = int(len(filtered))
         return [filtered], sem_seg_results, keep_step
 
     # ------------------------------------------------------------------
@@ -454,33 +530,143 @@ class CTCMT_MTL(nn.Module):
     # Cross-task consistency regularizer: student seg logits inside teacher
     # boxes must classify as that box's (seg-taxonomy) class.
     # ------------------------------------------------------------------
-    def _ctcr_loss(self, s_seg_logits, pseudo_instances):
+    def _ctcr_loss(
+        self,
+        s_seg_logits,
+        pseudo_instances,
+        teacher_seg_probs=None,
+    ):
+        """Cross-task consistency regularizer with selectable spatial mode."""
         inst = pseudo_instances[0]
-        if len(inst) == 0:
+        if len(inst) == 0 or s_seg_logits is None:
             return None
+
+        # A) Exact legacy full-box path for reproduction.
+        if self.ctcr_mode == "full_box":
+            B, K, H, W = s_seg_logits.shape
+            target = torch.full(
+                (B, H, W), 255, dtype=torch.long, device=s_seg_logits.device
+            )
+            img_h, img_w = inst.image_size
+            sx = W / max(img_w, 1)
+            sy = H / max(img_h, 1)
+            boxes = inst.pred_boxes.tensor.detach()
+            classes = inst.pred_classes.detach().long().tolist()
+
+            for j, (x1, y1, x2, y2) in enumerate(boxes.tolist()):
+                c = classes[j]
+                if not (0 <= c < len(_DET_TO_SEG_CLASS_CITYSCAPES)):
+                    continue
+                seg_c = _DET_TO_SEG_CLASS_CITYSCAPES[c]
+                if seg_c >= K:
+                    continue
+
+                x1i = max(int(round(x1 * sx)), 0)
+                y1i = max(int(round(y1 * sy)), 0)
+                x2i = min(int(round(x2 * sx)), W)
+                y2i = min(int(round(y2 * sy)), H)
+
+                if x2i <= x1i or y2i <= y1i:
+                    continue
+
+                target[0, y1i:y2i, x1i:x2i] = seg_c
+
+            if (target != 255).sum() == 0:
+                return None
+
+            return F.cross_entropy(
+                s_seg_logits, target, ignore_index=255
+            )
+
+        # B/C) New segmentation-supported modes.
+        if teacher_seg_probs is None:
+            return None
+
         B, K, H, W = s_seg_logits.shape
-        target = torch.full((B, H, W), 255, dtype=torch.long, device=s_seg_logits.device)
-        # Boxes are in the RESIZED input frame. Rescale to seg-logit grid.
+        probs = teacher_seg_probs.detach()
+
+        if probs.shape[-2:] != (H, W):
+            probs = F.interpolate(
+                probs.float(),
+                size=(H, W),
+                mode="bilinear",
+                align_corners=False,
+            )
+
         img_h, img_w = inst.image_size
         sx = W / max(img_w, 1)
         sy = H / max(img_h, 1)
+
         boxes = inst.pred_boxes.tensor.detach()
         classes = inst.pred_classes.detach().long().tolist()
+        box_losses = []
+
         for j, (x1, y1, x2, y2) in enumerate(boxes.tolist()):
             c = classes[j]
             if not (0 <= c < len(_DET_TO_SEG_CLASS_CITYSCAPES)):
                 continue
+
             seg_c = _DET_TO_SEG_CLASS_CITYSCAPES[c]
-            if seg_c >= K:
+            if seg_c >= K or seg_c >= probs.shape[1]:
                 continue
-            x1i = max(int(round(x1 * sx)), 0); y1i = max(int(round(y1 * sy)), 0)
-            x2i = min(int(round(x2 * sx)), W); y2i = min(int(round(y2 * sy)), H)
+
+            x1i = max(int(round(x1 * sx)), 0)
+            y1i = max(int(round(y1 * sy)), 0)
+            x2i = min(int(round(x2 * sx)), W)
+            y2i = min(int(round(y2 * sy)), H)
+
             if x2i <= x1i or y2i <= y1i:
                 continue
-            target[0, y1i:y2i, x1i:x2i] = seg_c
-        if (target != 255).sum() == 0:
+
+            logits_crop = s_seg_logits[
+                0:1, :, y1i:y2i, x1i:x2i
+            ].float()
+
+            h = y2i - y1i
+            w = x2i - x1i
+            target_crop = torch.full(
+                (1, h, w),
+                int(seg_c),
+                dtype=torch.long,
+                device=s_seg_logits.device,
+            )
+
+            ce = F.cross_entropy(
+                logits_crop,
+                target_crop,
+                reduction="none",
+            )[0]
+
+            q = probs[
+                0, seg_c, y1i:y2i, x1i:x2i
+            ].float().clamp(0.0, 1.0)
+
+            if self.ctcr_mode == "hard_seg":
+                mask = q >= self.ctcr_mask_thresh
+                if not bool(mask.any()):
+                    continue
+                box_loss = ce[mask].mean()
+
+            elif self.ctcr_mode == "soft_seg":
+                floor = self.ctcr_weight_floor
+                weights = floor + (1.0 - floor) * q
+                box_loss = (
+                    (weights * ce).sum()
+                    / weights.sum().clamp_min(1e-6)
+                )
+
+            else:
+                raise RuntimeError(
+                    f"Unexpected CT-CR mode: {self.ctcr_mode}"
+                )
+
+            box_losses.append(box_loss)
+
+        if not box_losses:
             return None
-        return F.cross_entropy(s_seg_logits, target, ignore_index=255)
+
+        # Equal box contribution; no det-score weighting in this ablation.
+        return torch.stack(box_losses).mean()
 
     # ------------------------------------------------------------------
     # EMA + stochastic restore.
@@ -538,43 +724,305 @@ class CTCMT_MTL(nn.Module):
                 src_dev = src.to(p.device, non_blocking=True)
                 p.data.mul_(1.0 - mask).add_(src_dev * mask)
 
-    # V3: reject a pseudo-box if the seg head disagrees with its class.
+    def _diag_write(self, record):
+        """Append one diagnostic record as JSONL.
+
+        Diagnostics are intentionally best-effort and must never change
+        the adaptation trajectory.
+        """
+        if not self.diag_jsonl:
+            return
+
+        try:
+            diag_dir = os.path.dirname(self.diag_jsonl)
+            if diag_dir:
+                os.makedirs(diag_dir, exist_ok=True)
+
+            with open(self.diag_jsonl, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
+
+        except Exception as exc:
+            print(f"[CT-CMT-DIAG] failed to write diagnostics: {exc}")
+
+    @staticmethod
+    def _diag_cityscapes_key(file_name):
+        name = os.path.basename(str(file_name or ""))
+        suffix = "_leftImg8bit.png"
+        if name.endswith(suffix):
+            return name[:-len(suffix)]
+        return os.path.splitext(name)[0]
+
     @torch.no_grad()
-    def _ctpv_filter(self, instances, teacher_seg_probs):
-        """Cross-task pseudo-label verification: keep box only when the seg
-        head assigns ≥ ctpv_thresh fraction of its pixels to the matching
-        seg class.  Returns filtered Instances."""
+    def _diag_masked_ctcr_stats(self, instances, teacher_seg_probs, file_name):
+        """Diagnostic-only masked CT-CR support statistics against semantic GT.
+
+        For every pre-CTPV pseudo-box and every configured probability threshold,
+        log:
+          - box_pixels: number of pixels inside the box on the seg grid
+          - gt_pixels: GT pixels of the mapped semantic class inside the box
+          - mask_pixels: pixels where teacher P(class) >= tau
+          - intersection: teacher mask pixels that are also GT class pixels
+
+        These values are used only for post-hoc analysis.
+        """
+        if (
+            not self.mask_diag_gt_root
+            or not self._mask_diag_gt_index
+            or teacher_seg_probs is None
+            or len(instances[0]) == 0
+        ):
+            return []
+
+        key = self._diag_cityscapes_key(file_name)
+        gt_path = self._mask_diag_gt_index.get(key)
+        if gt_path is None:
+            return []
+
+        try:
+            gt_np = np.asarray(Image.open(gt_path).convert("L"), dtype=np.int64)
+        except Exception as exc:
+            print(f"[CT-CMT-DIAG] failed to load semantic GT {gt_path}: {exc}")
+            return []
+
         inst = instances[0]
-        if len(inst) == 0 or teacher_seg_probs is None:
-            return instances
         _, K, H, W = teacher_seg_probs.shape
+
+        # Resize semantic trainIds to exactly the teacher-probability grid.
+        gt_t = torch.from_numpy(gt_np).to(teacher_seg_probs.device)
+        gt_t = gt_t[None, None].float()
+        gt_t = F.interpolate(gt_t, size=(H, W), mode="nearest")[0, 0].long()
+
         img_h, img_w = inst.image_size
-        sx = W / max(img_w, 1); sy = H / max(img_h, 1)
-        keep = []
-        for j, (box, c) in enumerate(zip(inst.pred_boxes.tensor.tolist(),
-                                          inst.pred_classes.tolist())):
+        sx = W / max(img_w, 1)
+        sy = H / max(img_h, 1)
+
+        out = []
+
+        for j, (box, c) in enumerate(
+            zip(
+                inst.pred_boxes.tensor.tolist(),
+                inst.pred_classes.tolist(),
+            )
+        ):
             if not (0 <= c < len(_DET_TO_SEG_CLASS_CITYSCAPES)):
-                keep.append(True); continue
+                continue
+
             seg_c = _DET_TO_SEG_CLASS_CITYSCAPES[c]
             if seg_c >= K:
-                keep.append(True); continue
+                continue
+
             x1, y1, x2, y2 = box
-            x1i = max(int(round(x1 * sx)), 0); y1i = max(int(round(y1 * sy)), 0)
-            x2i = min(int(round(x2 * sx)), W); y2i = min(int(round(y2 * sy)), H)
+            x1i = max(int(round(x1 * sx)), 0)
+            y1i = max(int(round(y1 * sy)), 0)
+            x2i = min(int(round(x2 * sx)), W)
+            y2i = min(int(round(y2 * sy)), H)
+
             if x2i <= x1i or y2i <= y1i:
-                keep.append(False); continue
-            region = teacher_seg_probs[0, :, y1i:y2i, x1i:x2i]  # (K, h, w)
-            pred_class = region.argmax(dim=0)  # (h, w)
-            agreement = float((pred_class == seg_c).float().mean())
-            keep.append(agreement >= self.ctpv_thresh)
-        if all(keep):
+                continue
+
+            q = teacher_seg_probs[0, seg_c, y1i:y2i, x1i:x2i]
+            gt_crop = gt_t[y1i:y2i, x1i:x2i]
+            gt_mask = gt_crop == int(seg_c)
+
+            box_pixels = int(q.numel())
+            gt_pixels = int(gt_mask.sum().item())
+
+            sweep = []
+            for tau in self.mask_diag_thresholds:
+                pred_mask = q >= float(tau)
+                mask_pixels = int(pred_mask.sum().item())
+                intersection = int((pred_mask & gt_mask).sum().item())
+                sweep.append({
+                    "tau": float(tau),
+                    "mask_pixels": mask_pixels,
+                    "intersection": intersection,
+                })
+
+            out.append({
+                "box_idx": int(j),
+                "det_class": int(c),
+                "seg_class": int(seg_c),
+                "det_score": float(inst.scores[j].item()),
+                "box_pixels": box_pixels,
+                "gt_pixels": gt_pixels,
+                "mean_class_prob": float(q.mean().item()),
+                "sweep": sweep,
+            })
+
+        return out
+
+    # V3: reject a pseudo-box if the seg head disagrees with its class.
+    @torch.no_grad()
+    def _ctpv_filter(self, instances, teacher_seg_probs, return_stats=False):
+        """Cross-task pseudo-label verification.
+
+        Keep a detection pseudo-box only when the segmentation teacher assigns
+        at least self.ctpv_thresh fraction of the pixels inside the box to the
+        corresponding semantic class.
+
+        When return_stats=True, also return per-box diagnostic information.
+        The filtering decision itself is unchanged.
+        """
+        inst = instances[0]
+
+        # ------------------------------------------------------------
+        # Nothing to verify.
+        # ------------------------------------------------------------
+        if len(inst) == 0 or teacher_seg_probs is None:
+            if return_stats:
+                return instances, []
             return instances
-        keep_t = torch.tensor(keep, device=inst.pred_boxes.tensor.device)
-        filtered = Instances(inst.image_size)
-        filtered.pred_boxes = Boxes(inst.pred_boxes.tensor[keep_t])
-        filtered.pred_classes = inst.pred_classes[keep_t]
-        filtered.scores = inst.scores[keep_t]
-        return [filtered]
+
+        _, K, H, W = teacher_seg_probs.shape
+
+        img_h, img_w = inst.image_size
+        sx = W / max(img_w, 1)
+        sy = H / max(img_h, 1)
+
+        keep = []
+        records = []
+
+        # ------------------------------------------------------------
+        # Evaluate every pseudo-box independently.
+        # ------------------------------------------------------------
+        for j, (box, c) in enumerate(
+            zip(
+                inst.pred_boxes.tensor.tolist(),
+                inst.pred_classes.tolist(),
+            )
+        ):
+            det_score = float(inst.scores[j].item())
+
+            # Detection class has no semantic mapping.
+            if not (0 <= c < len(_DET_TO_SEG_CLASS_CITYSCAPES)):
+                keep.append(True)
+
+                if return_stats:
+                    records.append({
+                        "box_idx": int(j),
+                        "det_class": int(c),
+                        "det_score": det_score,
+                        "box_xyxy": [float(v) for v in box],
+                        "seg_class": None,
+                        "agreement": None,
+                        "keep": True,
+                        "reason": "unmapped_detection_class",
+                    })
+
+                continue
+
+            seg_c = _DET_TO_SEG_CLASS_CITYSCAPES[c]
+
+            # Semantic class index not available in this segmentation head.
+            if seg_c >= K:
+                keep.append(True)
+
+                if return_stats:
+                    records.append({
+                        "box_idx": int(j),
+                        "det_class": int(c),
+                        "det_score": det_score,
+                        "box_xyxy": [float(v) for v in box],
+                        "seg_class": int(seg_c),
+                        "agreement": None,
+                        "keep": True,
+                        "reason": "seg_class_out_of_range",
+                    })
+
+                continue
+
+            # --------------------------------------------------------
+            # Map box from resized-image coordinates to seg-logit grid.
+            # --------------------------------------------------------
+            x1, y1, x2, y2 = box
+
+            x1i = max(int(round(x1 * sx)), 0)
+            y1i = max(int(round(y1 * sy)), 0)
+            x2i = min(int(round(x2 * sx)), W)
+            y2i = min(int(round(y2 * sy)), H)
+
+            # Invalid / empty box.
+            if x2i <= x1i or y2i <= y1i:
+                keep.append(False)
+
+                if return_stats:
+                    records.append({
+                        "box_idx": int(j),
+                        "det_class": int(c),
+                        "det_score": det_score,
+                        "box_xyxy": [float(v) for v in box],
+                        "seg_class": int(seg_c),
+                        "agreement": 0.0,
+                        "keep": False,
+                        "reason": "invalid_box",
+                    })
+
+                continue
+
+            # --------------------------------------------------------
+            # Current CTPV definition:
+            #
+            # fraction of pixels inside the box whose semantic argmax
+            # agrees with the detector class.
+            # --------------------------------------------------------
+            region = teacher_seg_probs[
+                0,
+                :,
+                y1i:y2i,
+                x1i:x2i,
+            ]  # (K, h, w)
+
+            pred_class = region.argmax(dim=0)
+
+            agreement = float(
+                (pred_class == seg_c)
+                .float()
+                .mean()
+                .item()
+            )
+
+            keep_decision = agreement >= self.ctpv_thresh
+            keep.append(keep_decision)
+
+            if return_stats:
+                records.append({
+                    "box_idx": int(j),
+                    "det_class": int(c),
+                    "det_score": det_score,
+                    "box_xyxy": [float(v) for v in box],
+                    "seg_class": int(seg_c),
+                    "agreement": agreement,
+                    "keep": bool(keep_decision),
+                    "reason": "agreement_threshold",
+                })
+
+        # ------------------------------------------------------------
+        # Apply exactly the same binary CTPV filtering as before.
+        # ------------------------------------------------------------
+        if all(keep):
+            result = instances
+
+        else:
+            keep_t = torch.tensor(
+                keep,
+                device=inst.pred_boxes.tensor.device,
+                dtype=torch.bool,
+            )
+
+            filtered = Instances(inst.image_size)
+            filtered.pred_boxes = Boxes(inst.pred_boxes.tensor[keep_t])
+            filtered.pred_classes = inst.pred_classes[keep_t]
+            filtered.scores = inst.scores[keep_t]
+
+            result = [filtered]
+
+        # ------------------------------------------------------------
+        # Diagnostics are optional.
+        # ------------------------------------------------------------
+        if return_stats:
+            return result, records
+
+        return result
 
     # V4: update cross-task prototype anchors; returns prototype pull loss.
     def _proto_anchor_update_and_loss(self, features, pseudo_inst, teacher_seg_probs):
@@ -708,10 +1156,103 @@ class CTCMT_MTL(nn.Module):
             with torch.no_grad():
                 t_seg_probs_ctpv = F.interpolate(
                     teacher_sem_results.float(),
-                    size=(teacher_sem_results.shape[-2], teacher_sem_results.shape[-1]),
-                    mode="bilinear", align_corners=False,
+                    size=(
+                        teacher_sem_results.shape[-2],
+                        teacher_sem_results.shape[-1],
+                    ),
+                    mode="bilinear",
+                    align_corners=False,
                 ).softmax(dim=1)
-                pseudo_inst = self._ctpv_filter(pseudo_inst, t_seg_probs_ctpv)
+
+                n_before_ctpv = len(pseudo_inst[0])
+                model_image_size = [
+                    int(pseudo_inst[0].image_size[0]),
+                    int(pseudo_inst[0].image_size[1]),
+                ]
+
+                masked_ctcr_records = []
+                if self.diag_jsonl and self.mask_diag_gt_root:
+                    masked_ctcr_records = self._diag_masked_ctcr_stats(
+                        pseudo_inst,
+                        t_seg_probs_ctpv,
+                        batched_inputs[0].get("file_name"),
+                    )
+
+                if self.diag_jsonl:
+                    pseudo_inst, ctpv_records = self._ctpv_filter(
+                        pseudo_inst,
+                        t_seg_probs_ctpv,
+                        return_stats=True,
+                    )
+                else:
+                    pseudo_inst = self._ctpv_filter(
+                        pseudo_inst,
+                        t_seg_probs_ctpv,
+                    )
+                    ctpv_records = []
+
+                n_after_ctpv = len(pseudo_inst[0])
+
+                if self.diag_jsonl:
+                    self._diag_write({
+                        "type": "ctpv",
+                        "iter": int(self.iter),
+                        "file_name": batched_inputs[0].get("file_name"),
+                        "image_id": batched_inputs[0].get("image_id"),
+                        "input_height": batched_inputs[0].get("height"),
+                        "input_width": batched_inputs[0].get("width"),
+                        "model_image_size": model_image_size,
+                        "threshold": float(self.ctpv_thresh),
+                        "score_em": float(self.score_em),
+                        "keep_step": bool(keep_step),
+                        "det_gate": bool(det_gate),
+                        "seg_gate": bool(seg_gate),
+                        "dynamic_thresholds": [float(x) for x in self.thresholds],
+                        "n_raw_teacher": int(self._diag_raw_teacher_n),
+                        "n_after_dynamic_threshold": int(self._diag_after_dyn_n),
+                        "n_before": int(n_before_ctpv),
+                        "n_after": int(n_after_ctpv),
+                        "n_rejected": int(
+                            n_before_ctpv - n_after_ctpv
+                        ),
+                        "rejection_rate": float(
+                            (n_before_ctpv - n_after_ctpv)
+                            / max(n_before_ctpv, 1)
+                        ),
+                        "boxes": ctpv_records,
+                        "masked_ctcr": masked_ctcr_records,
+                    })
+
+        elif self.ctpv_enabled and self.diag_jsonl:
+            # Log zero-pseudo images as well. This is important for exact
+            # GT recall calculations; otherwise images with no pseudo-boxes
+            # would silently disappear from the diagnostic trace.
+            self._diag_write({
+                "type": "ctpv",
+                "iter": int(self.iter),
+                "file_name": batched_inputs[0].get("file_name"),
+                "image_id": batched_inputs[0].get("image_id"),
+                "input_height": batched_inputs[0].get("height"),
+                "input_width": batched_inputs[0].get("width"),
+                "model_image_size": [
+                    int(pseudo_inst[0].image_size[0]),
+                    int(pseudo_inst[0].image_size[1]),
+                ],
+                "threshold": float(self.ctpv_thresh),
+                "score_em": float(self.score_em),
+                "keep_step": bool(keep_step),
+                "det_gate": bool(det_gate),
+                "seg_gate": bool(seg_gate),
+                "dynamic_thresholds": [float(x) for x in self.thresholds],
+                "n_raw_teacher": int(self._diag_raw_teacher_n),
+                "n_after_dynamic_threshold": int(self._diag_after_dyn_n),
+                "n_before": 0,
+                "n_after": 0,
+                "n_rejected": 0,
+                "rejection_rate": 0.0,
+                "boxes": [],
+                "masked_ctcr": [],
+            })
 
         # 2. Student full forward (backbone -> heads) to get everything we need
         #    in one pass.
@@ -792,7 +1333,11 @@ class CTCMT_MTL(nn.Module):
         # ---- Cross-task consistency regularizer (CT-CR).
         if (self.weight_ctcr > 0 and not self.det_only and not self.seg_only
                 and (det_gate or seg_gate) and len(pseudo_inst[0]) > 0):
-            loss_ctcr = self._ctcr_loss(s_seg_logits, pseudo_inst)
+            loss_ctcr = self._ctcr_loss(
+                s_seg_logits,
+                pseudo_inst,
+                teacher_seg_probs_full,
+            )
             if loss_ctcr is not None:
                 loss_dict["ctcr"] = self._cl_boost * self.weight_ctcr * loss_ctcr
 
