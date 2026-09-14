@@ -31,6 +31,19 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CFG=detectron2/configs/Cityscapes
 HOST_OUT="${HOST_OUT:-/data/ilias/amrod_output}"
 
+# Preflight: WEIGHTS are resolved inside the container under HOST_OUT. A wrong
+# or unset HOST_OUT makes docker create an empty dir and every arm dies on a
+# missing checkpoint minutes later. Copy them from Cronus if absent:
+#   rsync -avP --relative \
+#     /media/ilias/DATA/ilias/amrod_output/./mask_rcnn_R50_cityscapes/model_final.pth \
+#     /media/ilias/DATA/ilias/amrod_output/./semantic_R50_cityscapes/model_final.pth \
+#     ilias@gpu1:/data/ilias/amrod_output/
+for ckpt in mask_rcnn_R50_cityscapes semantic_R50_cityscapes; do
+  [[ -f "${HOST_OUT}/${ckpt}/model_final.pth" ]] || {
+    echo "ERROR: missing ${HOST_OUT}/${ckpt}/model_final.pth (HOST_OUT=${HOST_OUT})" >&2
+    exit 2; }
+done
+
 CYCLE=(fog motion_blur snow brightness defocus_blur)
 det_stream="("; seg_stream="("
 for _ in $(seq 1 10); do

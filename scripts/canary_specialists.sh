@@ -19,6 +19,20 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CFG=detectron2/configs/Cityscapes
 HOST_OUT="${HOST_OUT:-/media/ilias/DATA/ilias/amrod_output}"
 
+# Preflight: the source checkpoints are resolved INSIDE the container relative
+# to HOST_OUT. If HOST_OUT is unset on this machine, docker silently creates an
+# empty directory and every arm dies on a missing checkpoint after ~30 s of
+# startup. Fail here instead, in one second.
+for ckpt in mask_rcnn_R50_cityscapes semantic_R50_cityscapes; do
+  if [[ ! -f "${HOST_OUT}/${ckpt}/model_final.pth" ]]; then
+    echo "ERROR: missing ${HOST_OUT}/${ckpt}/model_final.pth" >&2
+    echo "       HOST_OUT=${HOST_OUT} -- export it for this machine, or copy the" >&2
+    echo "       specialist checkpoints over (see scripts/batch_st_specialists.sh)." >&2
+    exit 2
+  fi
+done
+echo "preflight OK: both specialist checkpoints found under ${HOST_OUT}"
+
 echo "######################################################################"
 echo "SPECIALIST CANARY   2 domains x 500 images per arm"
 echo "  gpu ${GPU_A}: ST-D  Mask R-CNN R50-FPN  + our detection CTTA"
@@ -43,6 +57,19 @@ report () {   # name, expect_det, expect_seg
   if grep -q "Traceback (most recent call last)" "${log}"; then
     echo "  [FAIL] traceback:"; grep -A12 "Traceback" "${log}" | head -16; fail=1
   else echo "  [PASS] no traceback"; fi
+
+  # A checkpoint from the wrong architecture still loads -- it just leaves most
+  # of the model at its random init and adapts garbage for six hours. A healthy
+  # load emits none of these lines.
+  local bad; bad=$(grep -cE "not found in the checkpoint|not used by the model|Skip loading parameter|incompatible shapes" "${log}") || bad=0
+  if [[ "${bad}" -eq 0 ]]; then
+    echo "  [PASS] checkpoint matches the architecture (0 key mismatches)"
+  else
+    echo "  [FAIL] ${bad} checkpoint key mismatches -- wrong checkpoint for this arch:"
+    grep -E "not found in the checkpoint|Skip loading parameter" "${log}" | head -3
+    fail=1
+  fi
+  echo "  source: $(grep -m1 -oE '/workspace/output/[^ ]*model_final.pth' "${log}")"
 
   local n; n=$(grep -c "in csv format" "${log}") || n=0
   [[ "${n}" -eq 2 ]] && echo "  [PASS] both domains evaluated (${n}/2)" \
