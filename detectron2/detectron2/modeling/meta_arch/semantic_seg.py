@@ -73,6 +73,22 @@ class SemanticSegmentor(nn.Module):
     def device(self):
         return self.pixel_mean.device
 
+    def preprocess_image(self, batched_inputs, strong_aug: bool = False):
+        """Normalize, pad and batch the input images.
+
+        Mirrors GeneralizedRCNN's signature so CTCMT_MTL can drive a
+        SemanticSegmentor student through the same interface, including the
+        weak/strong mean-teacher asymmetry.
+        """
+        key = "image_strong" if strong_aug else "image"
+        images = [x[key].to(self.device) for x in batched_inputs]
+        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+        return ImageList.from_tensors(
+            images,
+            self.backbone.size_divisibility,
+            padding_constraints=self.backbone.padding_constraints,
+        )
+
     def forward(self, batched_inputs):
         """
         Args:

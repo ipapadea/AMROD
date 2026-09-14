@@ -397,6 +397,9 @@ class CTCMT_MTL(nn.Module):
             "cos_sum": 0.0, "gamma_sum": 0.0, "w_det_sum": 0.0,
         }
         self._grad_fallbacks = 0
+        # How often the conditional CoTTA-style aug-averaging actually fired.
+        self._seg_aug_fired = 0
+        self._seg_steps = 0
 
         self.iter = 0
         # ---------------------------------------------------------------
@@ -473,7 +476,9 @@ class CTCMT_MTL(nn.Module):
             # No pseudo-masks -> disable mask head on student/anchor to skip
             # wasteful mask computation during adaptation. Keep it on the
             # teacher so the evaluator receives pred_masks (e.g. cityscapes).
-            if disable_mask_head and hasattr(m.roi_heads, "mask_on"):
+            # A SemanticSegmentor student has no roi_heads at all.
+            if (disable_mask_head and hasattr(m, "roi_heads")
+                    and hasattr(m.roi_heads, "mask_on")):
                 m.roi_heads.mask_on = False
             return m
 
@@ -515,8 +520,34 @@ class CTCMT_MTL(nn.Module):
     # Teacher pseudo-labels via dynamic per-class thresholds + score-EM gate.
     # Returns (list[Instances], keep_step: bool, score_summary: str)
     # ------------------------------------------------------------------
+    @staticmethod
+    def _empty_instances(images):
+        """Zero-length Instances carrying the fields the rest of forward() reads.
+
+        A bare ``Instances()`` raises on ``__len__``, and the periodic log line
+        reads ``len(pseudo_inst[0])`` unconditionally.
+        """
+        dev = images.tensor.device
+        inst = Instances(tuple(images.image_sizes[0]))
+        inst.pred_boxes = Boxes(torch.zeros((0, 4), device=dev))
+        inst.pred_classes = torch.zeros((0,), dtype=torch.long, device=dev)
+        inst.scores = torch.zeros((0,), device=dev)
+        return inst
+
     @torch.no_grad()
     def _teacher_pseudo(self, batched_inputs):
+        if self.seg_only:
+            # Segmentation-only student (e.g. SemanticSegmentor): no detector
+            # exists, so take the teacher's seg logits directly on the weak view
+            # and hand back an empty-but-well-formed pseudo-instance set.
+            images = self.teacher.preprocess_image(batched_inputs)
+            sem_seg_results, _ = self.teacher.sem_seg_head(
+                self.teacher.backbone(images.tensor), None
+            )
+            self._diag_raw_teacher_n = 0
+            self._diag_after_dyn_n = 0
+            return [self._empty_instances(images)], sem_seg_results, False
+
         # Raw teacher outputs (pre-postprocess), in the RESIZED image frame.
         # PanopticFPN returns (det, sem); GeneralizedRCNN returns det only.
         teacher_out = self.teacher.inference(batched_inputs, do_postprocess=False)
@@ -1729,6 +1760,8 @@ class CTCMT_MTL(nn.Module):
                             mode="bilinear", align_corners=False,
                         )
                         teacher_seg_probs_full = aug_probs
+                        self._seg_aug_fired += 1
+                self._seg_steps += 1
             s_seg_log_probs = F.log_softmax(s_seg_logits.float(), dim=1)
             per_pixel_ce = -(teacher_seg_probs_full.detach() * s_seg_log_probs).sum(dim=1)
 
@@ -1845,8 +1878,10 @@ class CTCMT_MTL(nn.Module):
             # which caps how many pseudo-labels can ever enter the detector.
             _t = self.thresholds
             thr = f" thr={min(_t):.3f}/{sum(_t)/len(_t):.3f}/{max(_t):.3f}" if _t else ""
+            aug = (f" segaug={self._seg_aug_fired}/{self._seg_steps}"
+                   if self.seg_aug_enabled else "")
             print(f"[CT-CMT-MTL] iter={self.iter} score_em={self.score_em:.3f} "
-                  f"n_pseudo={len(pseudo_inst[0])}{thr}{tag} {summary}")
+                  f"n_pseudo={len(pseudo_inst[0])}{thr}{aug}{tag} {summary}")
             s = self._conflict_stats
             if s["both"] > 0:
                 n = s["both"]
@@ -1874,19 +1909,30 @@ class CTCMT_MTL(nn.Module):
             print(f"[CT-CMT-GRADDIAG] iter={self.iter} {comps} {blocks}")
 
         # 5. Report TEACHER predictions for evaluation (no panoptic combine).
-        # 5. Report TEACHER predictions for evaluation (no panoptic combine).
         with torch.no_grad():
-            teacher_out = self.teacher.inference(batched_inputs, do_postprocess=False)
-            if isinstance(teacher_out, tuple) and len(teacher_out) == 2:
-                t_det, t_sem = teacher_out
+            if self.seg_only:
+                # No detector, and the teacher must see the weak view even when
+                # the student was trained on the strong one.
+                t_images = self.teacher.preprocess_image(batched_inputs)
+                t_sem, _ = self.teacher.sem_seg_head(
+                    self.teacher.backbone(t_images.tensor), None
+                )
+                t_det = None
+                image_sizes = t_images.image_sizes
             else:
-                t_det, t_sem = teacher_out, None
+                teacher_out = self.teacher.inference(batched_inputs, do_postprocess=False)
+                if isinstance(teacher_out, tuple) and len(teacher_out) == 2:
+                    t_det, t_sem = teacher_out
+                else:
+                    t_det, t_sem = teacher_out, None
+                image_sizes = images.image_sizes
         processed = []
-        for i, (inp, image_size) in enumerate(zip(batched_inputs, images.image_sizes)):
+        for i, (inp, image_size) in enumerate(zip(batched_inputs, image_sizes)):
             H = inp.get("height", image_size[0])
             W = inp.get("width", image_size[1])
-            det_r = detector_postprocess(t_det[i], H, W)
-            out_i = {"instances": det_r}
+            out_i = {}
+            if t_det is not None:
+                out_i["instances"] = detector_postprocess(t_det[i], H, W)
             if t_sem is not None:
                 out_i["sem_seg"] = sem_seg_postprocess(t_sem[i], image_size, H, W)
             processed.append(out_i)

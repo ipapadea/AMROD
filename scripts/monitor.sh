@@ -15,7 +15,10 @@ expected_for() {   # infer the eval count a complete run must reach
     *acdc_lt*|*acdcLT*) echo 40 ;;
     *csc_lt*|*cscLT*)   echo 50 ;;
     *csc12*|*cs_c*) echo 12 ;;
-    *acdc*)             echo  4 ;;
+    cd ~
+    tar czf ~/amrod_gpu1_snapshot_$(date +%F_%H%M).tgz \
+        --exclude='.git' --exclude='__pycache__' AMROD
+    ls -lh ~/amrod_gpu1_snapshot_*.tgz    *acdc*)             echo  4 ;;
     *)                  echo  0 ;;
   esac
 }
