@@ -70,6 +70,14 @@ __all__ = ["CTCMT_MTL"]
 # mask-weighted features per bbox class.
 _DET_TO_SEG_CLASS_CITYSCAPES = (11, 12, 13, 14, 15, 16, 17, 18)
 
+# Parameters shared by both task branches in PanopticFPN: the ResNet bottom-up
+# stack and the FPN necks live under ``backbone.``; ``proposal_generator.`` and
+# ``roi_heads.`` are detection-only, ``sem_seg_head.`` is segmentation-only.
+_SHARED_PARAM_PREFIXES = ("backbone.",)
+
+_VALID_CONFLICT_MODES = ("none", "protect_det", "cagrad", "hard_decouple",
+                         "dyn_weight", "aux_head_only")
+
 
 # =====================================================================
 # Supervised contrastive loss (Khosla et al. 2020) --- compact inline.
@@ -122,6 +130,72 @@ def _dyn_thresholds(prev, per_class_mean_scores, alpha: float, gamma: float,
         th = max(min(th, hi), lo)
         new.append(th)
     return new
+
+
+# =====================================================================
+# Gradient-magnitude restore mask (ported from amrod.py find_weight_quantile).
+# =====================================================================
+def _fisher_restore_mask(fisher: torch.Tensor, perc: float) -> torch.Tensor:
+    """Binary mask selecting the ``perc`` least-important entries of ``fisher``.
+
+    Importance is the squared gradient (empirical Fisher diagonal), scaled by
+    uniform noise so the selection stays stochastic rather than deterministic.
+    """
+    if perc <= 0.0:
+        return torch.zeros_like(fisher)
+    if perc >= 1.0:
+        return torch.ones_like(fisher)
+    weights = fisher / fisher.max().clamp_min(1e-12)
+    noisy = weights * torch.rand_like(weights)
+    flat = torch.sort(noisy.reshape(-1)).values
+    n = flat.numel()
+    frac_idx = perc * (n - 1)
+    low = int(frac_idx)
+    high = min(low + 1, n - 1)
+    thresh = flat[low] + (flat[high] - flat[low]) * (frac_idx - low)
+    return (noisy < thresh).float()
+
+
+# =====================================================================
+# Gradient-conflict utilities (S1/S2/S3/S5 screening batch).
+# =====================================================================
+def _shared_block_of(name: str) -> str:
+    """Coarse block label for a shared-trunk parameter, for per-block logging."""
+    if name.startswith("backbone.bottom_up.stem"):
+        return "stem"
+    for r in ("res2", "res3", "res4", "res5"):
+        if name.startswith(f"backbone.bottom_up.{r}"):
+            return r
+    return "fpn"
+
+
+def _cagrad_weight(g11: float, g12: float, g22: float, alpha: float) -> float:
+    """CAGrad (Liu et al., NeurIPS 2021) mixing weight for the two-task case.
+
+    Minimises F(x) = <g_x, g0> + phi * ||g_x|| over x in [0, 1], where
+    g_x = x*g1 + (1-x)*g2, g0 = (g1+g2)/2 and phi = alpha*||g0||. The official
+    implementation calls scipy's SLSQP; with two tasks the search is a single
+    bounded scalar, so a dense grid plus a local refinement is exact enough and
+    keeps the run dependency-free and deterministic.
+    """
+    g0_sq = 0.25 * (g11 + 2.0 * g12 + g22)
+    phi = alpha * math.sqrt(max(g0_sq, 0.0))
+
+    def F(x: float) -> float:
+        gx_g0 = 0.5 * (x * (g11 + g12) + (1.0 - x) * (g12 + g22))
+        gx_sq = x * x * g11 + 2.0 * x * (1.0 - x) * g12 + (1.0 - x) * (1.0 - x) * g22
+        return gx_g0 + phi * math.sqrt(max(gx_sq, 0.0))
+
+    xs = [i / 200.0 for i in range(201)]
+    best = min(xs, key=F)
+    lo, hi = max(0.0, best - 0.005), min(1.0, best + 0.005)
+    for _ in range(40):
+        m1, m2 = lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0
+        if F(m1) < F(m2):
+            hi = m2
+        else:
+            lo = m1
+    return 0.5 * (lo + hi)
 
 
 # =====================================================================
@@ -186,7 +260,9 @@ class CTCMT_MTL(nn.Module):
             getattr(cfg.SOLVER, "CTCMT_CTCR_WEIGHT_FLOOR", 0.2)
         )
 
-        _valid_ctcr_modes = {"full_box", "hard_seg", "soft_seg"}
+        _valid_ctcr_modes = {
+            "full_box", "per_box_full", "hard_seg", "soft_seg", "soft_seg_global",
+        }
         if self.ctcr_mode not in _valid_ctcr_modes:
             raise ValueError(
                 f"Unsupported CTCMT_CTCR_MODE={self.ctcr_mode!r}; "
@@ -238,6 +314,32 @@ class CTCMT_MTL(nn.Module):
         # backbone restore rate = restore_prob * this factor (< 1 = more protection)
         self.backbone_rst_factor = float(getattr(cfg.SOLVER, "CTCMT_BACKBONE_RST_FACTOR", 0.1))
 
+        # Weak/strong mean-teacher asymmetry (AMROD-style): the teacher keeps the
+        # weak view, the student is trained on "image_strong".
+        self.strong_aug_student = bool(getattr(cfg.SOLVER, "CTCMT_STRONG_AUG_STUDENT", False))
+
+        # DIAGNOSTIC ONLY. This is AMROD's "Randomized Restoration" (Wei et al.,
+        # one of that paper's two titular contributions), ported to quantify how
+        # much of its advantage comes from restoration. Never report as ours.
+        self.fisher_restore = bool(getattr(cfg.SOLVER, "CTCMT_FISHER_RESTORE", False))
+
+        # Counteract minority-class collapse: the plain pixel-mean soft-CE is
+        # dominated by frequent classes, so self-distillation absorbs rare
+        # classes into their dominant neighbours over long streams.
+        self.class_balanced_ce = bool(getattr(cfg.SOLVER, "CTCMT_CLASS_BALANCED_CE", False))
+        self.class_balance_beta = float(getattr(cfg.SOLVER, "CTCMT_CLASS_BALANCE_BETA", 0.5))
+        self.class_marginal_ema = float(getattr(cfg.SOLVER, "CTCMT_CLASS_MARGINAL_EMA", 0.999))
+        self._class_marginal = None
+        # Reweighting raises the seg loss magnitude (rarity correlates with error);
+        # this keeps det/seg gradient balance fixed so the ablation stays clean.
+        self.seg_scale_preserve = bool(
+            getattr(cfg.SOLVER, "CTCMT_SEG_LOSS_SCALE_PRESERVE", False)
+        )
+
+        self.anchor_marginal_weight = float(
+            getattr(cfg.SOLVER, "CTCMT_ANCHOR_MARGINAL_WEIGHT", 0.0)
+        )
+
         # --- Novel extension V3: cross-task pseudo-label verification ---
         # Reject a det box as pseudo-label if the seg head disagrees with its class.
         self.ctpv_enabled = bool(getattr(cfg.SOLVER, "CTCMT_CTPV_ENABLED", False))
@@ -272,6 +374,29 @@ class CTCMT_MTL(nn.Module):
         self.adaptive_str_boost = float(getattr(cfg.SOLVER, "CTCMT_ADAPTIVE_STR_BOOST", 0.4))
         self.adaptive_str_pivot = float(getattr(cfg.SOLVER, "CTCMT_ADAPTIVE_STR_PIVOT", 0.05))
         self._backbone_source_norm = None   # cached lazily after _source_params snapshot
+
+        # --- Negative-transfer screening batch (S1..S5) ---
+        self.conflict_mode = str(
+            getattr(cfg.SOLVER, "CTCMT_CONFLICT_MODE", "none")
+        ).lower()
+        if self.conflict_mode not in _VALID_CONFLICT_MODES:
+            raise ValueError(
+                f"Unsupported CTCMT_CONFLICT_MODE={self.conflict_mode!r}; "
+                f"expected one of {sorted(_VALID_CONFLICT_MODES)}"
+            )
+        self.cagrad_alpha = float(getattr(cfg.SOLVER, "CTCMT_CAGRAD_ALPHA", 0.5))
+        self.freeze_shared_trunk = bool(
+            getattr(cfg.SOLVER, "CTCMT_FREEZE_SHARED_TRUNK", False)
+        )
+        self.grad_diag = bool(getattr(cfg.SOLVER, "CTCMT_GRAD_DIAG", False))
+        self.grad_diag_every = max(int(getattr(cfg.SOLVER, "CTCMT_GRAD_DIAG_EVERY", 50)), 1)
+        self._param_index = None            # [(name, param)], built lazily
+        self._shared_names = None           # set[str]
+        self._conflict_stats = {
+            "steps": 0, "both": 0, "conflicts": 0, "projected": 0,
+            "cos_sum": 0.0, "gamma_sum": 0.0, "w_det_sum": 0.0,
+        }
+        self._grad_fallbacks = 0
 
         self.iter = 0
         # ---------------------------------------------------------------
@@ -355,6 +480,23 @@ class CTCMT_MTL(nn.Module):
         student = _build_and_load(train_mode=True,  freeze=False, disable_mask_head=True)
         teacher = _build_and_load(train_mode=True,  freeze=True,  disable_mask_head=False)
         anchor  = _build_and_load(train_mode=False, freeze=True,  disable_mask_head=True)
+
+        # S4: structural parameter isolation. Must happen BEFORE build_optimizer
+        # so the frozen tensors never enter a param group (and so momentum /
+        # weight decay can never touch them).
+        if bool(getattr(cfg.SOLVER, "CTCMT_FREEZE_SHARED_TRUNK", False)):
+            n_frozen = n_train = 0
+            for nm, p in student.named_parameters():
+                if any(nm.startswith(pfx) for pfx in _SHARED_PARAM_PREFIXES):
+                    p.requires_grad_(False)
+                    n_frozen += p.numel()
+                elif p.requires_grad:
+                    n_train += p.numel()
+            trainable = sorted({
+                nm.split(".")[0] for nm, p in student.named_parameters() if p.requires_grad
+            })
+            print(f"[CT-CMT-MTL] FREEZE_SHARED_TRUNK: frozen={n_frozen/1e6:.2f}M "
+                  f"trainable={n_train/1e6:.2f}M modules={trainable}")
 
         optimizer = build_optimizer(cfg, student)
         return {
@@ -541,12 +683,43 @@ class CTCMT_MTL(nn.Module):
         if len(inst) == 0 or s_seg_logits is None:
             return None
 
-        # A) Exact legacy full-box path for reproduction.
-        if self.ctcr_mode == "full_box":
+        # A / D) Global target-map path.
+        #
+        # "full_box" is the legacy A formulation: uniform weight, cross-entropy
+        # normalized per supervised PIXEL.
+        #
+        # "soft_seg_global" is the D cell of the CT-CR 2x2: identical target-map
+        # construction and overlap-overwrite order as A, but each supervised
+        # pixel is weighted by w = floor + (1 - floor) * q, with q the detached
+        # teacher posterior for the mapped semantic class. Normalization stays
+        # global (sum w) rather than per box, so D isolates soft semantic
+        # weighting from the per-box aggregation change made by A2/B/C.
+        # With floor = 1.0, D reduces exactly to A.
+        if self.ctcr_mode in ("full_box", "soft_seg_global"):
+            use_soft_global = self.ctcr_mode == "soft_seg_global"
+
             B, K, H, W = s_seg_logits.shape
             target = torch.full(
                 (B, H, W), 255, dtype=torch.long, device=s_seg_logits.device
             )
+
+            probs = None
+            weight = None
+            if use_soft_global:
+                if teacher_seg_probs is None:
+                    return None
+                probs = teacher_seg_probs.detach()
+                if probs.shape[-2:] != (H, W):
+                    probs = F.interpolate(
+                        probs.float(),
+                        size=(H, W),
+                        mode="bilinear",
+                        align_corners=False,
+                    )
+                weight = torch.zeros(
+                    (B, H, W), dtype=torch.float32, device=s_seg_logits.device
+                )
+
             img_h, img_w = inst.image_size
             sx = W / max(img_w, 1)
             sy = H / max(img_h, 1)
@@ -560,6 +733,8 @@ class CTCMT_MTL(nn.Module):
                 seg_c = _DET_TO_SEG_CLASS_CITYSCAPES[c]
                 if seg_c >= K:
                     continue
+                if probs is not None and seg_c >= probs.shape[1]:
+                    continue
 
                 x1i = max(int(round(x1 * sx)), 0)
                 y1i = max(int(round(y1 * sy)), 0)
@@ -571,27 +746,51 @@ class CTCMT_MTL(nn.Module):
 
                 target[0, y1i:y2i, x1i:x2i] = seg_c
 
-            if (target != 255).sum() == 0:
+                if use_soft_global:
+                    q = probs[0, seg_c, y1i:y2i, x1i:x2i].float().clamp(0.0, 1.0)
+                    floor = self.ctcr_weight_floor
+                    weight[0, y1i:y2i, x1i:x2i] = floor + (1.0 - floor) * q
+
+            valid = target != 255
+            if int(valid.sum()) == 0:
                 return None
 
-            return F.cross_entropy(
-                s_seg_logits, target, ignore_index=255
+            if not use_soft_global:
+                return F.cross_entropy(
+                    s_seg_logits, target, ignore_index=255
+                )
+
+            ce = F.cross_entropy(
+                s_seg_logits, target, ignore_index=255, reduction="none"
             )
+            w = weight * valid.float()
+            return (w * ce).sum() / w.sum().clamp_min(1e-6)
 
-        # B/C) New segmentation-supported modes.
-        if teacher_seg_probs is None:
-            return None
-
+        # A2/B/C) Per-box CT-CR modes.
+        #
+        # "per_box_full" is the controlled A2 ablation:
+        #   - full rectangular bbox supervision (same semantic assumption as A)
+        #   - NO teacher-semantic mask or weighting
+        #   - per-box CE normalization + equal mean across boxes (same aggregation
+        #     machinery as B/C)
+        #
+        # This separates the effect of spatial semantic reliability from the
+        # legacy global target-map / overlap-overwrite aggregation used by A.
         B, K, H, W = s_seg_logits.shape
-        probs = teacher_seg_probs.detach()
+        probs = None
 
-        if probs.shape[-2:] != (H, W):
-            probs = F.interpolate(
-                probs.float(),
-                size=(H, W),
-                mode="bilinear",
-                align_corners=False,
-            )
+        if self.ctcr_mode != "per_box_full":
+            if teacher_seg_probs is None:
+                return None
+
+            probs = teacher_seg_probs.detach()
+            if probs.shape[-2:] != (H, W):
+                probs = F.interpolate(
+                    probs.float(),
+                    size=(H, W),
+                    mode="bilinear",
+                    align_corners=False,
+                )
 
         img_h, img_w = inst.image_size
         sx = W / max(img_w, 1)
@@ -607,7 +806,9 @@ class CTCMT_MTL(nn.Module):
                 continue
 
             seg_c = _DET_TO_SEG_CLASS_CITYSCAPES[c]
-            if seg_c >= K or seg_c >= probs.shape[1]:
+            if seg_c >= K:
+                continue
+            if probs is not None and seg_c >= probs.shape[1]:
                 continue
 
             x1i = max(int(round(x1 * sx)), 0)
@@ -637,28 +838,34 @@ class CTCMT_MTL(nn.Module):
                 reduction="none",
             )[0]
 
-            q = probs[
-                0, seg_c, y1i:y2i, x1i:x2i
-            ].float().clamp(0.0, 1.0)
-
-            if self.ctcr_mode == "hard_seg":
-                mask = q >= self.ctcr_mask_thresh
-                if not bool(mask.any()):
-                    continue
-                box_loss = ce[mask].mean()
-
-            elif self.ctcr_mode == "soft_seg":
-                floor = self.ctcr_weight_floor
-                weights = floor + (1.0 - floor) * q
-                box_loss = (
-                    (weights * ce).sum()
-                    / weights.sum().clamp_min(1e-6)
-                )
+            if self.ctcr_mode == "per_box_full":
+                # A2 control: every pixel in the rectangle is supervised
+                # uniformly, but each box is normalized independently.
+                box_loss = ce.mean()
 
             else:
-                raise RuntimeError(
-                    f"Unexpected CT-CR mode: {self.ctcr_mode}"
-                )
+                q = probs[
+                    0, seg_c, y1i:y2i, x1i:x2i
+                ].float().clamp(0.0, 1.0)
+
+                if self.ctcr_mode == "hard_seg":
+                    mask = q >= self.ctcr_mask_thresh
+                    if not bool(mask.any()):
+                        continue
+                    box_loss = ce[mask].mean()
+
+                elif self.ctcr_mode == "soft_seg":
+                    floor = self.ctcr_weight_floor
+                    weights = floor + (1.0 - floor) * q
+                    box_loss = (
+                        (weights * ce).sum()
+                        / weights.sum().clamp_min(1e-6)
+                    )
+
+                else:
+                    raise RuntimeError(
+                        f"Unexpected CT-CR mode: {self.ctcr_mode}"
+                    )
 
             box_losses.append(box_loss)
 
@@ -667,6 +874,208 @@ class CTCMT_MTL(nn.Module):
 
         # Equal box contribution; no det-score weighting in this ablation.
         return torch.stack(box_losses).mean()
+
+    @torch.no_grad()
+    def _update_class_marginal(self, teacher_probs):
+        """Running EMA of the teacher's predicted class marginal."""
+        m = teacher_probs.mean(dim=(0, 2, 3)).float()
+        if self._class_marginal is None:
+            self._class_marginal = m.clone()
+        else:
+            a = self.class_marginal_ema
+            self._class_marginal.mul_(a).add_(m, alpha=1.0 - a)
+        return self._class_marginal
+
+    # ------------------------------------------------------------------
+    # Task-aware gradient combination on the shared trunk (S1/S2/S3/S5).
+    # ------------------------------------------------------------------
+    def _ensure_param_index(self):
+        if self._param_index is None:
+            self._param_index = [
+                (n, p) for n, p in self.student.named_parameters() if p.requires_grad
+            ]
+            self._shared_names = [
+                n for n, _ in self._param_index
+                if any(n.startswith(pfx) for pfx in _SHARED_PARAM_PREFIXES)
+            ]
+            self._shared_set = set(self._shared_names)
+
+    def _snapshot_grads(self):
+        """Clone the current .grad of every trainable student param, then clear."""
+        g = {n: p.grad.detach().clone() for n, p in self._param_index if p.grad is not None}
+        self.optimizer.zero_grad(set_to_none=True)
+        return g
+
+    def _shared_dot(self, ga, gb) -> float:
+        """<ga, gb> over shared-trunk parameters only, as one flattened vector."""
+        acc = None
+        for n in self._shared_names:
+            a, b = ga.get(n), gb.get(n)
+            if a is None or b is None:
+                continue
+            t = (a * b).sum()
+            acc = t if acc is None else acc + t
+        return 0.0 if acc is None else float(acc)
+
+    def _shared_block_cos(self, ga, gb):
+        """Per-block cos(ga, gb): where in the trunk the conflict actually lives."""
+        acc = {}
+        for n in self._shared_names:
+            a, b = ga.get(n), gb.get(n)
+            if a is None or b is None:
+                continue
+            d = acc.setdefault(_shared_block_of(n), [0.0, 0.0, 0.0])
+            d[0] += float((a * b).sum())
+            d[1] += float((a * a).sum())
+            d[2] += float((b * b).sum())
+        return {
+            k: v[0] / (math.sqrt(max(v[1], 0.0) * max(v[2], 0.0)) + 1e-12)
+            for k, v in acc.items()
+        }
+
+    def _backward_and_combine(self, loss_dict):
+        """Backward pass(es) + shared-trunk gradient combination.
+
+        On return the student's ``.grad`` fields hold exactly what the optimizer
+        should apply. Returns a diagnostics dict (logging only).
+        """
+        diag = {}
+        groups = {}
+        for k, v in loss_dict.items():
+            g = k.split("/")[0]
+            groups[g] = v if g not in groups else groups[g] + v
+        det_loss = groups.get("det")
+        aux_keys = sorted(k for k in groups if k != "det")
+
+        want_components = self.grad_diag and (self.iter % self.grad_diag_every == 0)
+        if self.conflict_mode == "none" and not want_components:
+            total = sum(loss_dict.values())
+            if total.requires_grad:
+                total.backward()
+            return diag
+        if det_loss is None or not aux_keys:
+            # Only one side is present this step: nothing to reconcile.
+            total = sum(loss_dict.values())
+            if total.requires_grad:
+                total.backward()
+                if self.conflict_mode == "aux_head_only" and det_loss is None:
+                    # Routing is unconditional, so the aux objective must not
+                    # reach the trunk even on steps with no detection gradient.
+                    self._ensure_param_index()
+                    for n, p in self._param_index:
+                        if n in self._shared_set:
+                            p.grad = None
+                    self._conflict_stats["aux_only_routed"] = (
+                        self._conflict_stats.get("aux_only_routed", 0) + 1)
+            return diag
+
+        self._ensure_param_index()
+        if want_components:
+            passes = [("det", det_loss)] + [(k, groups[k]) for k in aux_keys]
+        else:
+            passes = [("det", det_loss), ("aux", sum(groups[k] for k in aux_keys))]
+
+        # A degenerate CT-CL (no positive pairs) returns a detached constant.
+        # It contributes no gradient, but backwarding it on its own raises.
+        passes = [(n, l) for n, l in passes if l.requires_grad]
+        names = {n for n, _ in passes}
+        if "det" not in names or len(names) < 2:
+            if passes:
+                sum(l for _, l in passes).backward()
+            return diag
+
+        grads = {}
+        for i, (name, loss) in enumerate(passes):
+            loss.backward(retain_graph=(i < len(passes) - 1))
+            grads[name] = self._snapshot_grads()
+
+        g_det = grads.pop("det")
+        g_aux = {}
+        for comp in grads.values():
+            for n, t in comp.items():
+                g_aux[n] = t.clone() if n not in g_aux else g_aux[n] + t
+
+        nd2 = self._shared_dot(g_det, g_det)
+        nd = math.sqrt(max(nd2, 0.0))
+        if want_components:
+            for name, comp in grads.items():
+                nc = math.sqrt(max(self._shared_dot(comp, comp), 0.0))
+                diag[f"cos_det_{name}"] = self._shared_dot(g_det, comp) / (nd * nc + 1e-12)
+
+        dot = self._shared_dot(g_det, g_aux)
+        na2 = self._shared_dot(g_aux, g_aux)
+        na = math.sqrt(max(na2, 0.0))
+        cos = dot / (nd * na + 1e-12)
+        conflict = dot < 0.0
+        diag.update({"cos": cos, "g_det": nd, "g_aux": na, "conflict": conflict})
+        if want_components:
+            diag["blocks"] = self._shared_block_cos(g_det, g_aux)
+
+        # Per-mode scalar coefficients: shared grad = c_det*g_det + c_aux*g_aux.
+        c_det, c_aux_shared, c_aux_other = 1.0, 1.0, 1.0
+        if self.conflict_mode == "protect_det":
+            if conflict:
+                coef = dot / (nd2 + 1e-12)
+                for n in self._shared_names:
+                    a, d = g_aux.get(n), g_det.get(n)
+                    if a is not None and d is not None:
+                        a.add_(d, alpha=-coef)
+                diag["projected"] = True
+                diag["g_aux_proj"] = math.sqrt(max(self._shared_dot(g_aux, g_aux), 0.0))
+            else:
+                diag["projected"] = False
+                diag["g_aux_proj"] = na
+        elif self.conflict_mode == "cagrad":
+            x = _cagrad_weight(nd2, dot, na2, self.cagrad_alpha)
+            gw2 = x * x * nd2 + 2.0 * x * (1.0 - x) * dot + (1.0 - x) * (1.0 - x) * na2
+            g0 = math.sqrt(max(0.25 * (nd2 + 2.0 * dot + na2), 0.0))
+            coef = self.cagrad_alpha * g0 / (math.sqrt(max(gw2, 0.0)) + 1e-8)
+            # Official CAGrad averages the task gradients; the x2 restores the
+            # magnitude of the joint (summed) baseline so step size is unchanged.
+            denom = 1.0 + self.cagrad_alpha ** 2
+            c_det = (1.0 + 2.0 * coef * x) / denom
+            c_aux_shared = (1.0 + 2.0 * coef * (1.0 - x)) / denom
+            diag.update({"w_det": x, "w_aux": 1.0 - x,
+                         "c_det": c_det, "c_aux": c_aux_shared})
+        elif self.conflict_mode == "hard_decouple":
+            c_aux_shared = 0.0 if conflict else 1.0
+            diag["decoupled"] = conflict
+        elif self.conflict_mode == "aux_head_only":
+            # Detection owns the shared representation; the auxiliary objective
+            # only ever updates its own head. Unconditional, not conflict-gated.
+            c_aux_shared = 0.0
+            diag["decoupled"] = True
+        elif self.conflict_mode == "dyn_weight":
+            gamma = max(0.0, cos)
+            c_aux_shared = c_aux_other = gamma
+            diag["gamma"] = gamma
+
+        for n, p in self._param_index:
+            shared = n in self._shared_set
+            cd = c_det if shared else 1.0
+            ca = c_aux_shared if shared else c_aux_other
+            gd, ga = g_det.get(n), g_aux.get(n)
+            if gd is None and ga is None:
+                p.grad = None
+                continue
+            # A zeroed coefficient must still yield a zero grad, not None, or
+            # SGD momentum would silently skip the parameter instead of decaying.
+            out = torch.zeros_like(p)
+            if gd is not None and cd != 0.0:
+                out.add_(gd, alpha=cd)
+            if ga is not None and ca != 0.0:
+                out.add_(ga, alpha=ca)
+            p.grad = out
+
+        s = self._conflict_stats
+        s["steps"] += 1
+        s["both"] += 1
+        s["conflicts"] += int(conflict)
+        s["projected"] += int(diag.get("projected", False) or diag.get("decoupled", False))
+        s["cos_sum"] += cos
+        s["gamma_sum"] += diag.get("gamma", 0.0)
+        s["w_det_sum"] += diag.get("w_det", 0.0)
+        return diag
 
     # ------------------------------------------------------------------
     # EMA + stochastic restore.
@@ -682,8 +1091,11 @@ class CTCMT_MTL(nn.Module):
                 v.copy_(s_state[k])
 
     @torch.no_grad()
-    def _stochastic_restore(self):
+    def _stochastic_restore(self, fisher=None):
         if self.restore_prob <= 0.0:
+            return
+        # Fisher mode needs the gradients from this step; skip when none exist.
+        if self.fisher_restore and not fisher:
             return
         _shared_prefixes = ("backbone.", "fpn.", "proposal_generator.anchor_generator.")
         # E5: measure current shared-trunk drift and adapt the backbone-restore factor.
@@ -720,7 +1132,13 @@ class CTCMT_MTL(nn.Module):
                     rst = rst * eff_backbone_factor
                 if rst <= 0.0:
                     continue
-                mask = (torch.rand_like(p) < rst).float()
+                if self.fisher_restore:
+                    g = fisher.get(key)
+                    if g is None:
+                        continue
+                    mask = _fisher_restore_mask(g, rst)
+                else:
+                    mask = (torch.rand_like(p) < rst).float()
                 src_dev = src.to(p.device, non_blocking=True)
                 p.data.mul_(1.0 - mask).add_(src_dev * mask)
 
@@ -1255,8 +1673,11 @@ class CTCMT_MTL(nn.Module):
             })
 
         # 2. Student full forward (backbone -> heads) to get everything we need
-        #    in one pass.
-        images = self.student.preprocess_image(batched_inputs)
+        #    in one pass. With CTCMT_STRONG_AUG_STUDENT the student consumes the
+        #    strong view while every teacher/anchor path keeps the weak one.
+        images = self.student.preprocess_image(
+            batched_inputs, strong_aug=self.strong_aug_student
+        )
         features = self.student.backbone(images.tensor)
 
         loss_dict = {}
@@ -1279,6 +1700,7 @@ class CTCMT_MTL(nn.Module):
         else:
             s_seg_logits = None
         if not self.det_only and seg_gate and s_seg_logits is not None:
+            anchor_seg_probs = None
             teacher_seg_probs_full = F.interpolate(
                 teacher_sem_results.float(), size=s_seg_logits.shape[-2:],
                 mode="bilinear", align_corners=False,
@@ -1297,6 +1719,7 @@ class CTCMT_MTL(nn.Module):
                         anchor_feats = self.anchor.backbone(images.tensor)
                         a_logits, _ = self.anchor.sem_seg_head(anchor_feats, None)
                         a_probs = a_logits.float().softmax(dim=1)
+                        anchor_seg_probs = a_probs
                         conf = a_probs.max(dim=1)[0].mean()
                         trigger = float(conf.item()) < self.seg_aug_conf_thresh
                     if trigger:
@@ -1308,17 +1731,51 @@ class CTCMT_MTL(nn.Module):
                         teacher_seg_probs_full = aug_probs
             s_seg_log_probs = F.log_softmax(s_seg_logits.float(), dim=1)
             per_pixel_ce = -(teacher_seg_probs_full.detach() * s_seg_log_probs).sum(dim=1)
+
+            # Multiplicative per-pixel weights; all-ones reproduces the plain mean.
+            pixel_w = None
             if self.entropy_weighted_ce:
                 # E2: down-weight uncertain pixels by (1 - normalized entropy).
                 K = teacher_seg_probs_full.shape[1]
                 with torch.no_grad():
                     tp = teacher_seg_probs_full.clamp_min(1e-8)
                     t_H_map = -(tp * tp.log()).sum(dim=1)                # (B, H, W)
-                    pixel_w = (1.0 - t_H_map / math.log(K)).clamp_min(0.0)
-                loss_seg = (pixel_w * per_pixel_ce).sum() / (pixel_w.sum() + 1e-6)
-            else:
+                    ent_w = (1.0 - t_H_map / math.log(K)).clamp_min(0.0)
+                pixel_w = ent_w if pixel_w is None else pixel_w * ent_w
+            if self.class_balanced_ce:
+                with torch.no_grad():
+                    marg = self._update_class_marginal(teacher_seg_probs_full)
+                    inv = marg.clamp_min(1e-6).pow(-self.class_balance_beta)
+                    cb_w = inv[teacher_seg_probs_full.argmax(dim=1)]
+                    cb_w = cb_w / cb_w.mean().clamp_min(1e-6)
+                pixel_w = cb_w if pixel_w is None else pixel_w * cb_w
+
+            if pixel_w is None:
                 loss_seg = per_pixel_ce.mean()
+            else:
+                loss_seg = (pixel_w * per_pixel_ce).sum() / (pixel_w.sum() + 1e-6)
+                if self.seg_scale_preserve:
+                    # Keep the reweighted gradient DIRECTION but restore the
+                    # unweighted magnitude, so reweighting cannot silently
+                    # change segmentation's share of the shared-trunk gradient.
+                    with torch.no_grad():
+                        scale = per_pixel_ce.mean() / loss_seg.clamp_min(1e-8)
+                    loss_seg = loss_seg * scale
             loss_dict["seg/soft_ce"] = self.weight_seg * loss_seg
+
+            # Mode-covering KL(anchor || student) on the predicted class
+            # marginal: the student cannot drop a class the source still uses.
+            if self.anchor_marginal_weight > 0:
+                if anchor_seg_probs is None:
+                    with torch.no_grad():
+                        a_feats = self.anchor.backbone(images.tensor)
+                        a_log, _ = self.anchor.sem_seg_head(a_feats, None)
+                        anchor_seg_probs = a_log.float().softmax(dim=1)
+                q = anchor_seg_probs.mean(dim=(0, 2, 3)).detach().clamp_min(1e-8)
+                p = s_seg_logits.float().softmax(dim=1).mean(dim=(0, 2, 3)).clamp_min(1e-8)
+                loss_dict["seg/anchor_marginal"] = (
+                    self.anchor_marginal_weight * (q * (q.log() - p.log())).sum()
+                )
         else:
             teacher_seg_probs_full = None
 
@@ -1350,23 +1807,71 @@ class CTCMT_MTL(nn.Module):
                 loss_dict["proto"] = self.proto_weight * proto_loss
 
         # 3. Backward + step.
+        fisher = None
+        grad_diag = {}
         if loss_dict:
-            total = sum(loss_dict.values())
             self.optimizer.zero_grad(set_to_none=True)
-            total.backward()
+            try:
+                grad_diag = self._backward_and_combine(loss_dict)
+            except RuntimeError as exc:
+                # Never let gradient surgery kill a multi-hour stream; degrade to
+                # the joint update and count it so the run stays auditable.
+                self._grad_fallbacks += 1
+                if self._grad_fallbacks <= 5:
+                    print(f"[CT-CMT-GRAD] WARNING iter={self.iter} surgery failed "
+                          f"({exc}); falling back to joint backward")
+                self.optimizer.zero_grad(set_to_none=True)
+                total = sum(loss_dict.values())
+                if total.requires_grad:
+                    total.backward()
+            if self.fisher_restore:
+                fisher = {}
+                for nm, m in self.student.named_modules():
+                    for np_name, p in m.named_parameters(recurse=False):
+                        if np_name in ("weight", "bias") and p.grad is not None:
+                            fisher[f"{nm}.{np_name}"] = p.grad.detach().pow(2)
             self.optimizer.step()
 
         # 4. EMA + stochastic restore.
         self._update_teacher()
-        self._stochastic_restore()
+        self._stochastic_restore(fisher)
 
         if self.iter % 50 == 0:
             summary = " ".join(f"{k}={float(v.detach()):.3f}" for k, v in loss_dict.items())
             tag = ""
             if self.per_task_gate:
                 tag = f" det_gate={det_gate} seg_gate={seg_gate}"
+            # thr exposes whether the dynamic threshold is pinned at THRESHOLD_MAX,
+            # which caps how many pseudo-labels can ever enter the detector.
+            _t = self.thresholds
+            thr = f" thr={min(_t):.3f}/{sum(_t)/len(_t):.3f}/{max(_t):.3f}" if _t else ""
             print(f"[CT-CMT-MTL] iter={self.iter} score_em={self.score_em:.3f} "
-                  f"n_pseudo={len(pseudo_inst[0])}{tag} {summary}")
+                  f"n_pseudo={len(pseudo_inst[0])}{thr}{tag} {summary}")
+            s = self._conflict_stats
+            if s["both"] > 0:
+                n = s["both"]
+                print(f"[CT-CMT-GRAD] iter={self.iter} mode={self.conflict_mode} "
+                      f"cos={grad_diag.get('cos', float('nan')):.4f} "
+                      f"cos_mean={s['cos_sum'] / n:.4f} "
+                      f"conflict_rate={s['conflicts'] / n:.4f} "
+                      f"applied_rate={s['projected'] / n:.4f} "
+                      f"g_det={grad_diag.get('g_det', float('nan')):.5f} "
+                      f"g_aux={grad_diag.get('g_aux', float('nan')):.5f} "
+                      f"g_aux_proj={grad_diag.get('g_aux_proj', float('nan')):.5f} "
+                      f"gamma={grad_diag.get('gamma', float('nan')):.4f} "
+                      f"gamma_mean={s['gamma_sum'] / n:.4f} "
+                      f"w_det={grad_diag.get('w_det', float('nan')):.4f} "
+                      f"w_det_mean={s['w_det_sum'] / n:.4f} "
+                      f"fallbacks={self._grad_fallbacks} "
+                      f"n_steps={n}")
+        if grad_diag and any(k.startswith("cos_det_") for k in grad_diag):
+            comps = " ".join(
+                f"{k}={grad_diag[k]:.4f}" for k in sorted(grad_diag) if k.startswith("cos_det_")
+            )
+            blocks = " ".join(
+                f"blk_{k}={v:.4f}" for k, v in sorted(grad_diag.get("blocks", {}).items())
+            )
+            print(f"[CT-CMT-GRADDIAG] iter={self.iter} {comps} {blocks}")
 
         # 5. Report TEACHER predictions for evaluation (no panoptic combine).
         # 5. Report TEACHER predictions for evaluation (no panoptic combine).

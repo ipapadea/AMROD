@@ -581,8 +581,11 @@ _C.SOLVER.CTCMT_WEIGHT_CTCL = 0.01
 _C.SOLVER.CTCMT_WEIGHT_CTCR = 0.0
 # CT-CR spatial supervision modes.
 # "full_box" preserves the legacy reproduction path exactly.
+# "per_box_full" is the A2 control: full bbox, but per-box normalized loss.
 # "hard_seg" keeps only teacher-semantic-supported pixels in each bbox.
 # "soft_seg" weights bbox pixels by teacher semantic probability.
+# "soft_seg_global" is the D cell: soft_seg weighting with A's global
+# target-map construction and per-pixel (not per-box) normalization.
 _C.SOLVER.CTCMT_CTCR_MODE = "full_box"
 _C.SOLVER.CTCMT_CTCR_MASK_THRESH = 0.3
 _C.SOLVER.CTCMT_CTCR_WEIGHT_FLOOR = 0.2
@@ -603,6 +606,28 @@ _C.SOLVER.CTCMT_PER_TASK_GATE_SEG_THRESH = 0.8
 # V2: task-aware (cross-task) stochastic restore.
 _C.SOLVER.CTCMT_CROSS_TASK_FISHER = False
 _C.SOLVER.CTCMT_BACKBONE_RST_FACTOR = 1.0  # V2 configs set this to 0.1
+
+# Feed the student a strong-augmented view (photometric + RandomErasing) while
+# the teacher keeps the weak view, as AMROD does. The strong view is already
+# produced by DatasetMapper as "image_strong".
+_C.SOLVER.CTCMT_STRONG_AUG_STUDENT = False
+
+# DIAGNOSTIC ONLY -- this is AMROD's "Randomized Restoration" (Wei et al.),
+# ported to measure how much of their advantage comes from restoration.
+# Must never be reported as one of our contributions.
+_C.SOLVER.CTCMT_FISHER_RESTORE = False
+
+# Class-balanced segmentation consistency: weight each pixel by the inverse
+# teacher class marginal ^ beta, countering minority-class collapse.
+_C.SOLVER.CTCMT_CLASS_BALANCED_CE = False
+_C.SOLVER.CTCMT_CLASS_BALANCE_BETA = 0.5
+_C.SOLVER.CTCMT_CLASS_MARGINAL_EMA = 0.999
+# Preserve the unweighted seg-loss magnitude when per-pixel reweighting is on,
+# so reweighting changes gradient direction only, not det/seg balance.
+_C.SOLVER.CTCMT_SEG_LOSS_SCALE_PRESERVE = False
+
+# Mode-covering KL(anchor || student) on the predicted class marginal.
+_C.SOLVER.CTCMT_ANCHOR_MARGINAL_WEIGHT = 0.0
 # V3: cross-task pseudo-label verification.
 _C.SOLVER.CTCMT_CTPV_ENABLED = False
 _C.SOLVER.CTCMT_CTPV_THRESH = 0.3
@@ -636,6 +661,24 @@ _C.SOLVER.CTCMT_SEG_AUG_ENABLED = False
 _C.SOLVER.CTCMT_SEG_AUG_CONF_THRESH = 0.9
 _C.SOLVER.CTCMT_SEG_AUG_SCALES = (0.75, 1.0, 1.25)
 _C.SOLVER.CTCMT_SEG_AUG_FLIPS = (False, True)
+
+# --- Negative-transfer screening batch (S1..S5, Sep 2026). ---
+# How the detection gradient and the aggregate non-detection ("aux") gradient
+# are combined on the SHARED backbone/FPN parameters.
+#   "none"          -- single joint backward (bit-identical to the old path).
+#   "protect_det"   -- S1: project g_aux off g_det whenever they conflict.
+#   "cagrad"        -- S2: symmetric CAGrad consensus (Liu et al., NeurIPS'21).
+#   "hard_decouple" -- S3: on conflict, shared trunk sees g_det only.
+#   "dyn_weight"    -- S5: L = L_det + max(0, cos) * L_aux.
+_C.SOLVER.CTCMT_CONFLICT_MODE = "none"
+# CAGrad alpha (constraint radius c = alpha * ||g_mean||).
+_C.SOLVER.CTCMT_CAGRAD_ALPHA = 0.5
+# S4: freeze the shared backbone/FPN; only task-specific heads adapt.
+_C.SOLVER.CTCMT_FREEZE_SHARED_TRUNK = False
+# Per-loss-component gradient-conflict diagnostics (extra backward per
+# component on the sampled steps). Logging only -- never changes the update.
+_C.SOLVER.CTCMT_GRAD_DIAG = False
+_C.SOLVER.CTCMT_GRAD_DIAG_EVERY = 50
 
 # Options: WarmupMultiStepLR, WarmupCosineLR.
 # See detectron2/solver/build.py for definition.

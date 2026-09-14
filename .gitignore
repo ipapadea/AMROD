@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# In-place backups kept while patching the meta-arch
+*.bak
+*.bak_before_*
+
+# Gathered results are regenerated from whichever machine's logs; committing
+# them from two machines guarantees conflicts. Use `git add -f` for a snapshot.
+results/collected/
