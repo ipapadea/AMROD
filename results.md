@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-15 15:06 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-15 15:12 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `f402f10`
+Commit: `d36567e`
 
 ## 1. Setup
 
@@ -14,7 +14,7 @@ Commit: `f402f10`
 | `mask_rcnn_R50_cityscapes` | Mask R-CNN R50-FPN (detection specialist) | ST-D, specialist study only | `bee2df53a0757b8f` |
 | `semantic_R50_cityscapes` | Semantic FPN R50 (segmentation specialist) | ST-S, specialist study only | `f09d1aa9d5acae21` |
 
-All same-source comparisons use the **Panoptic FPN R50 MTL** checkpoint. Every baseline (TENT, CoTTA, AMROD) is re-run on that same checkpoint rather than quoted from its paper, so no comparison confounds the adaptation method with the source model.
+All same-source comparisons use the **Panoptic FPN R50 MTL** checkpoint. Every baseline (TENT, CoTTA, AMROD) is re-run on that same checkpoint rather than quoted from its paper, so no comparison confounds the adaptation method with the source model. All three checkpoints are byte-identical on both execution hosts (verified by md5), so results produced on either machine are comparable.
 
 ### Protocols
 
@@ -186,7 +186,7 @@ These arms **change the source checkpoint**, so they are not same-source with th
 
 `Gain` is measured against the source row immediately above each block, i.e. each arm's own checkpoint. `Drift` is round 10 minus the best round: how much of the peak is given back over the stream.
 
-> **Checkpoint identity.** The `host GPU` column identifies the machine. ST-D and ST-S ran on the L40S host against *that machine's* specialist checkpoints, which are not necessarily the same files as the Cronus copies whose md5s appear in section 1. Their source-only rows must be produced on the same host, or the Gain compares two different models.
+> **Checkpoint identity.** The `host GPU` column identifies the machine each run executed on. All three source checkpoints were verified **byte-identical on both hosts** (md5s in section 1), so runs are directly comparable across machines and a source-only baseline may be measured on either one.
 
 **ST-D** ties E15 (+0.4 mAP0.5, inside the ~0.5 noise floor): a dedicated detector gives no advantage over the multi-task checkpoint for detection CTTA, so the MTL source is not handicapping detection.
 
@@ -206,5 +206,5 @@ These arms **change the source checkpoint**, so they are not same-source with th
 - `cotta_pfnsrc_cscLT_s0` &mdash; CoTTA (cscLT)
 - TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` CoTTA log has 0 evaluations; no long-term run exists here
 - Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every `vs full MTL` margin is currently n=1 on the reference
-- Source-only for the two specialist checkpoints &mdash; `source_only_mrcnn_cs_c.yaml` and `source_only_semfpn_cs_c.yaml`, ~15 min each. Without them ST-D/ST-S have no Gain and their absolute means cannot be compared against the Panoptic-FPN arms.
+- Source-only for the two specialist checkpoints &mdash; `source_only_mrcnn_cs_c.yaml` and `source_only_semfpn_cs_c.yaml`, ~15 min each, runnable on either host. Without them ST-D/ST-S have no Gain and their absolute means cannot be compared against the Panoptic-FPN arms.
 

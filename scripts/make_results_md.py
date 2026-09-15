@@ -262,7 +262,9 @@ def main():
     w("All same-source comparisons use the **Panoptic FPN R50 MTL** checkpoint. "
       "Every baseline (TENT, CoTTA, AMROD) is re-run on that same checkpoint "
       "rather than quoted from its paper, so no comparison confounds the "
-      "adaptation method with the source model.\n")
+      "adaptation method with the source model. All three checkpoints are "
+      "byte-identical on both execution hosts (verified by md5), so results "
+      "produced on either machine are comparable.\n")
 
     w("### Protocols\n")
     w("| protocol | stream | evaluations |")
@@ -431,11 +433,11 @@ def main():
     w("`Gain` is measured against the source row immediately above each block, "
       "i.e. each arm's own checkpoint. `Drift` is round 10 minus the best round: "
       "how much of the peak is given back over the stream.\n")
-    w("> **Checkpoint identity.** The `host GPU` column identifies the machine. "
-      "ST-D and ST-S ran on the L40S host against *that machine's* specialist "
-      "checkpoints, which are not necessarily the same files as the Cronus "
-      "copies whose md5s appear in section 1. Their source-only rows must be "
-      "produced on the same host, or the Gain compares two different models.\n")
+    w("> **Checkpoint identity.** The `host GPU` column identifies the machine "
+      "each run executed on. All three source checkpoints were verified "
+      "**byte-identical on both hosts** (md5s in section 1), so runs are "
+      "directly comparable across machines and a source-only baseline may be "
+      "measured on either one.\n")
     w("**ST-D** ties E15 (+0.4 mAP0.5, inside the ~0.5 noise floor): a dedicated "
       "detector gives no advantage over the multi-task checkpoint for detection "
       "CTTA, so the MTL source is not handicapping detection.\n")
@@ -473,8 +475,9 @@ def main():
         "`vs full MTL` margin is currently n=1 on the reference",
         "Source-only for the two specialist checkpoints &mdash; "
         "`source_only_mrcnn_cs_c.yaml` and `source_only_semfpn_cs_c.yaml`, "
-        "~15 min each. Without them ST-D/ST-S have no Gain and their absolute "
-        "means cannot be compared against the Panoptic-FPN arms.",
+        "~15 min each, runnable on either host. Without them ST-D/ST-S have no "
+        "Gain and their absolute means cannot be compared against the "
+        "Panoptic-FPN arms.",
     ]
     for m in missing:
         w(f"- {m}")
