@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-15 12:20 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-15 13:19 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `d0912cd`
+Commit: `8992ced`
 
 ## 1. Setup
 
