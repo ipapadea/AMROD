@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-15 13:19 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-15 13:26 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `8992ced`
+Commit: `6f6b447`
 
 ## 1. Setup
 
@@ -102,25 +102,23 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 
 | Condition | R1 Fog | R1 Night | R1 Rain | R1 Snow | R4 Fog | R4 Night | R4 Rain | R4 Snow | R7 Fog | R7 Night | R7 Rain | R7 Snow | R10 Fog | R10 Night | R10 Rain | R10 Snow | Mean | Gain | Iter. |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| AMROD | 52.2 | 16.8 | 37.0 | 37.8 | 55.3 | 21.2 | 37.9 | 40.9 | 56.6 | 22.6 | 39.3 | 41.5 | 56.3 | 23.5 | 38.9 | 42.1 | **39.0** | / | / |
-| Ours, full MTL (E11) | 53.9 | 18.2 | 39.4 | 42.0 | 60.0 | 25.4 | 43.3 | 50.0 | 59.9 | 27.0 | 44.0 | 51.1 | 58.3 | 26.7 | 43.6 | 50.8 | **44.0** | / | 16.0k |
-| B1 &mdash; detection-only | 52.2 | 17.4 | 38.8 | 39.9 | 57.9 | 24.9 | 44.1 | 46.6 | 59.9 | 27.6 | 45.1 | 48.7 | 61.1 | 27.9 | 44.7 | 48.9 | **43.4** | / | 12.2k |
-| S6 &mdash; seg-head-only routing | 52.3 | 17.5 | 38.1 | 40.3 | 58.6 | 25.5 | 43.6 | 46.9 | 60.1 | 27.3 | 44.6 | 47.9 | 60.8 | 28.6 | 43.8 | 48.5 | **43.5** | / | 16.0k |
-
-> Source (no adaptation) has not been measured on ACDC; `scripts/run_source_only_acdc.sh` fills this in (~25 min) and the Gain column needs it.
+| Source (no adaptation) | 50.6 | 15.2 | 30.6 | 35.5 | 50.6 | 15.2 | 30.6 | 35.5 | 50.6 | 15.2 | 30.6 | 35.5 | 50.6 | 15.2 | 30.6 | 35.5 | **33.0** | +0.0 | / |
+| AMROD | 52.2 | 16.8 | 37.0 | 37.8 | 55.3 | 21.2 | 37.9 | 40.9 | 56.6 | 22.6 | 39.3 | 41.5 | 56.3 | 23.5 | 38.9 | 42.1 | **39.0** | +6.0 | / |
+| Ours, full MTL (E11) | 53.9 | 18.2 | 39.4 | 42.0 | 60.0 | 25.4 | 43.3 | 50.0 | 59.9 | 27.0 | 44.0 | 51.1 | 58.3 | 26.7 | 43.6 | 50.8 | **44.0** | +11.0 | 16.0k |
+| B1 &mdash; detection-only | 52.2 | 17.4 | 38.8 | 39.9 | 57.9 | 24.9 | 44.1 | 46.6 | 59.9 | 27.6 | 45.1 | 48.7 | 61.1 | 27.9 | 44.7 | 48.9 | **43.4** | +10.4 | 12.2k |
+| S6 &mdash; seg-head-only routing | 52.3 | 17.5 | 38.1 | 40.3 | 58.6 | 25.5 | 43.6 | 46.9 | 60.1 | 27.3 | 44.6 | 47.9 | 60.8 | 28.6 | 43.8 | 48.5 | **43.5** | +10.5 | 16.0k |
 
 ## Table 4
 **Cityscapes to ACDC, long-term &mdash; mIoU.** Four conditions repeated ten times, no reset (40 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
 
 | Condition | R1 Fog | R1 Night | R1 Rain | R1 Snow | R4 Fog | R4 Night | R4 Rain | R4 Snow | R7 Fog | R7 Night | R7 Rain | R7 Snow | R10 Fog | R10 Night | R10 Rain | R10 Snow | Mean | Gain | Iter. |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| TENT | 38.5 | 18.7 | 39.4 | 32.3 | 38.8 | 18.3 | 39.4 | 32.4 | 38.7 | 17.7 | 39.1 | 32.2 | 38.4 | 17.2 | 38.7 | 32.0 | **32.0** | / | / |
-| CoTTA | 38.3 | 17.9 | 37.8 | 29.6 | 26.2 | 12.9 | 27.0 | 20.3 | 18.9 | 10.1 | 20.9 | 15.8 | 15.7 | 8.6 | 17.9 | 13.6 | **20.2** | / | / |
-| Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 37.8 | 47.6 | 25.9 | 47.8 | 42.6 | 46.6 | 25.9 | 46.8 | 42.4 | 45.2 | 25.5 | 45.5 | 41.7 | **39.8** | / | 16.0k |
-| B1 &mdash; detection-only | 39.3 | 19.8 | 41.3 | 35.4 | 47.5 | 24.1 | 44.9 | 40.3 | 48.3 | 25.9 | 45.5 | 41.2 | 48.2 | 26.3 | 44.6 | 41.0 | **38.9** | / | 12.2k |
-| S6 &mdash; seg-head-only routing | 39.2 | 19.8 | 41.3 | 35.3 | 46.1 | 23.7 | 44.2 | 38.9 | 46.7 | 24.7 | 44.6 | 39.8 | 44.6 | 25.2 | 41.9 | 37.5 | **37.6** | / | 16.0k |
-
-> Source (no adaptation) has not been measured on ACDC; `scripts/run_source_only_acdc.sh` fills this in (~25 min) and the Gain column needs it.
+| Source (no adaptation) | 38.5 | 18.8 | 32.4 | 32.1 | 38.5 | 18.8 | 32.4 | 32.1 | 38.5 | 18.8 | 32.4 | 32.1 | 38.5 | 18.8 | 32.4 | 32.1 | **30.4** | +0.0 | / |
+| TENT | 38.5 | 18.7 | 39.4 | 32.3 | 38.8 | 18.3 | 39.4 | 32.4 | 38.7 | 17.7 | 39.1 | 32.2 | 38.4 | 17.2 | 38.7 | 32.0 | **32.0** | +1.6 | / |
+| CoTTA | 38.3 | 17.9 | 37.8 | 29.6 | 26.2 | 12.9 | 27.0 | 20.3 | 18.9 | 10.1 | 20.9 | 15.8 | 15.7 | 8.6 | 17.9 | 13.6 | **20.2** | -10.3 | / |
+| Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 37.8 | 47.6 | 25.9 | 47.8 | 42.6 | 46.6 | 25.9 | 46.8 | 42.4 | 45.2 | 25.5 | 45.5 | 41.7 | **39.8** | +9.4 | 16.0k |
+| B1 &mdash; detection-only | 39.3 | 19.8 | 41.3 | 35.4 | 47.5 | 24.1 | 44.9 | 40.3 | 48.3 | 25.9 | 45.5 | 41.2 | 48.2 | 26.3 | 44.6 | 41.0 | **38.9** | +8.4 | 12.2k |
+| S6 &mdash; seg-head-only routing | 39.2 | 19.8 | 41.3 | 35.3 | 46.1 | 23.7 | 44.2 | 38.9 | 46.7 | 24.7 | 44.6 | 39.8 | 44.6 | 25.2 | 41.9 | 37.5 | **37.6** | +7.2 | 16.0k |
 
 ## Table 5
 **Cityscapes to Cityscapes-C, short-term &mdash; mAP0.5.** Twelve corruptions, single pass (12 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -143,23 +141,21 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 
 | Condition | Fog | Night | Rain | Snow | Mean | Gain | Iter. |
 |---|---|---|---|---|---|---|---|
-| Ours, full MTL (E11) | 53.8 | 18.2 | 39.5 | 42.0 | **38.4** | / | 1.6k |
-| Ours, CT-CR mode D | 52.5 | 16.6 | 38.0 | 40.7 | **36.9** | / | 1.6k |
-| AMROD | 52.1 | 16.9 | 36.8 | 37.8 | **35.9** | / | / |
-
-> Source (no adaptation) has not been measured on ACDC; `scripts/run_source_only_acdc.sh` fills this in (~25 min) and the Gain column needs it.
+| Source (no adaptation) | 50.6 | 15.2 | 30.6 | 35.5 | **33.0** | +0.0 | / |
+| Ours, full MTL (E11) | 53.8 | 18.2 | 39.5 | 42.0 | **38.4** | +5.4 | 1.6k |
+| Ours, CT-CR mode D | 52.5 | 16.6 | 38.0 | 40.7 | **36.9** | +4.0 | 1.6k |
+| AMROD | 52.1 | 16.9 | 36.8 | 37.8 | **35.9** | +2.9 | / |
 
 ## Table 8
 **Cityscapes to ACDC, short-term &mdash; mIoU.** Four conditions, single pass (4 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
 
 | Condition | Fog | Night | Rain | Snow | Mean | Gain | Iter. |
 |---|---|---|---|---|---|---|---|
-| Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 38.0 | **35.8** | / | 1.6k |
-| Ours, CT-CR mode D | 39.8 | 20.0 | 42.9 | 37.4 | **35.1** | / | 1.6k |
-| TENT | 38.5 | 18.7 | 39.4 | 32.3 | **32.2** | / | / |
-| CoTTA | 38.3 | 17.9 | 37.8 | 29.6 | **30.9** | / | / |
-
-> Source (no adaptation) has not been measured on ACDC; `scripts/run_source_only_acdc.sh` fills this in (~25 min) and the Gain column needs it.
+| Source (no adaptation) | 38.5 | 18.8 | 32.4 | 32.1 | **30.4** | +0.0 | / |
+| Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 38.0 | **35.8** | +5.3 | 1.6k |
+| Ours, CT-CR mode D | 39.8 | 20.0 | 42.9 | 37.4 | **35.1** | +4.6 | 1.6k |
+| TENT | 38.5 | 18.7 | 39.4 | 32.3 | **32.2** | +1.8 | / |
+| CoTTA | 38.3 | 17.9 | 37.8 | 29.6 | **30.9** | +0.4 | / |
 
 ## Factorial ablation (Cityscapes-C long-term, seed 0)
 
@@ -180,14 +176,11 @@ Cells are **mAP0.5** / mIoU. The segmentation loss has almost no main effect but
 
 - **Specialist study.** ST-D (Mask R-CNN) and ST-S (Semantic FPN) change the source checkpoint and are therefore reported separately, never in the same-source tables above.
 
-- **ACDC source row** is missing (see note under the ACDC tables).
-
 ## Gaps: runs referenced above that are absent from this machine
 
 - `tent_pfnsrc_cscLT_s0` &mdash; TENT (cscLT)
 - `cotta_pfnsrc_cscLT_s0` &mdash; CoTTA (cscLT)
 - TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` CoTTA log has 0 evaluations; no long-term run exists here
-- Source (no adaptation) on ACDC &mdash; `scripts/run_source_only_acdc.sh`, ~25 min
 - Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every `vs full MTL` margin is currently n=1 on the reference
 - ST-D / ST-S specialist study &mdash; prepared, blocked on locating the specialist checkpoints on the remote machine
 

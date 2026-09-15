@@ -77,6 +77,7 @@ RUNS = [
     # ---- short-term
     ("source_only_pfn_cs_c",           "Source (no adaptation)",        "csc12", ""),
     ("e11_bothsc_ctcrD_csc12_s0",      "Ours, full MTL (E11)",          "csc12", ""),
+    ("source_only_pfn_acdc",           "Source (no adaptation)",        "acdc4", ""),
     ("e11_bothsc_ctcrD_acdc4_s0",      "Ours, full MTL (E11)",          "acdc4", ""),
     ("ctcr_D_acdc_seed0",              "Ours, CT-CR mode D",            "acdc4", ""),
     ("amrod_pfnsrc_seed0",             "AMROD",                         "acdc4", ""),
@@ -195,6 +196,10 @@ def main():
             src_csc["ap"].append(src12_ap[i])
             src_csc["iou"].append(src12_iou[i])
 
+    # ACDC source-only is a single pass over the four conditions, in cycle order.
+    sa_ap, sa_iou, _ = data.get("source_only_pfn_acdc", (None, None, None))
+    src_acdc = {"ap": sa_ap or [], "iou": sa_iou or []}
+
     out = []
     w = out.append
     w("# Results\n")
@@ -287,7 +292,11 @@ def main():
                     rows.append((label, vals, None, note))
                     continue
                 if stem == "__SOURCE_ACDC__":
-                    continue  # not measured yet
+                    key = "ap" if idx == 0 else "iou"
+                    if not src_acdc[key]:
+                        continue
+                    rows.append((label, src_acdc[key] * p["rounds"], None, note))
+                    continue
                 vals, frac = (data[stem][idx], data[stem][2])
                 if not vals:
                     continue
@@ -299,13 +308,15 @@ def main():
                 src = src_csc["ap" if idx == 0 else "iou"] * p["rounds"]
             elif proto == "csc12":
                 src = (src12_ap if idx == 0 else src12_iou)
+            elif proto in ("acdcLT", "acdc4"):
+                src = src_acdc["ap" if idx == 0 else "iou"] or None
             w(f"## Table {tno}")
             w(f"**{p['title']} &mdash; {metric}.** {p['desc'].capitalize()}. "
               "`B`/`C`/`S` rows are single-factor ablations of the reference "
               "row above them.\n")
             w(build_table(rows, proto, metric, src))
             w("")
-            if proto.startswith("acdc"):
+            if proto.startswith("acdc") and not src_acdc["ap"]:
                 w("> Source (no adaptation) has not been measured on ACDC; "
                   "`scripts/run_source_only_acdc.sh` fills this in (~25 min) "
                   "and the Gain column needs it.\n")
@@ -346,7 +357,6 @@ def main():
     w("- **Specialist study.** ST-D (Mask R-CNN) and ST-S (Semantic FPN) change "
       "the source checkpoint and are therefore reported separately, never in "
       "the same-source tables above.\n")
-    w("- **ACDC source row** is missing (see note under the ACDC tables).\n")
 
     w("## Gaps: runs referenced above that are absent from this machine\n")
     missing = []
@@ -358,7 +368,6 @@ def main():
     PENDING = [
         "TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` "
         "CoTTA log has 0 evaluations; no long-term run exists here",
-        "Source (no adaptation) on ACDC &mdash; `scripts/run_source_only_acdc.sh`, ~25 min",
         "Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every "
         "`vs full MTL` margin is currently n=1 on the reference",
         "ST-D / ST-S specialist study &mdash; prepared, blocked on locating the "
