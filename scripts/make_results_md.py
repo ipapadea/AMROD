@@ -107,6 +107,7 @@ SPECIALIST = [
     ("source_only_pfn_cs_c",        "Source &mdash; Panoptic FPN MTL",           "seg"),
     ("e21_segonly_thr080_cscLT_s0", "E21 seg-only on Panoptic FPN MTL",          "seg"),
     ("e13a_thrmax080_cscLT_s0",     "E13a full MTL on Panoptic FPN",             "seg"),
+    ("e15_detonly_thr080_cscLT_s0", "E15 det-only on Panoptic FPN MTL",          "seg"),
 ]
 
 
