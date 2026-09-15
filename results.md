@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-15 14:53 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-15 15:06 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `20a0995`
+Commit: `f402f10`
 
 ## 1. Setup
 
@@ -172,19 +172,21 @@ Cells are **mAP0.5** / mIoU. The segmentation loss has almost no main effect but
 
 These arms **change the source checkpoint**, so they are not same-source with the tables above and must never be merged into them. Absolute means are not comparable across different sources &mdash; only each arm's gain over *its own* source, and its own trajectory, are.
 
-| Condition | source checkpoint | Mean | Gain | Peak | R10 | Drift |
-|---|---|---|---|---|---|---|
-| Source &mdash; Mask R-CNN specialist | &mdash; | n/a | / | &mdash; | &mdash; | not run |
-| **ST-D** Mask R-CNN + our det CTTA | `mask_rcnn_R50` | **27.24** | / | 29.7 (R9) | 29.2 | -0.5 |
-| Source &mdash; Panoptic FPN MTL | `panoptic_fpn_R50` | **13.17** | / | &mdash; | &mdash; | frozen |
-| E15 det-only on Panoptic FPN MTL | `panoptic_fpn_R50` | **26.80** | +13.6 | 29.5 (R10) | 29.5 | +0.0 |
-| Source &mdash; Semantic FPN specialist | &mdash; | n/a | / | &mdash; | &mdash; | not run |
-| **ST-S** Semantic FPN + our seg CTTA | `semantic_R50` | **34.39** | / | 35.2 (R4) | 33.6 | -1.6 |
-| Source &mdash; Panoptic FPN MTL | `panoptic_fpn_R50` | **27.21** | / | &mdash; | &mdash; | frozen |
-| E21 seg-only on Panoptic FPN MTL | `panoptic_fpn_R50` | **28.21** | +1.0 | 29.2 (R3) | 26.7 | -2.5 |
-| E13a full MTL on Panoptic FPN | `panoptic_fpn_R50` | **30.83** | +3.6 | 33.2 (R3) | 28.1 | -5.2 |
+| Condition | source checkpoint | host GPU | Mean | Gain | Peak | R10 | Drift |
+|---|---|---|---|---|---|---|---|
+| Source &mdash; Mask R-CNN specialist | &mdash; | &mdash; | n/a | / | &mdash; | &mdash; | not run |
+| **ST-D** Mask R-CNN + our det CTTA | `mask_rcnn_R50` | L40S | **27.24** | / | 29.7 (R9) | 29.2 | -0.5 |
+| Source &mdash; Panoptic FPN MTL | `panoptic_fpn_R50` | GeForce RTX 3090 | **13.17** | / | &mdash; | &mdash; | frozen |
+| E15 det-only on Panoptic FPN MTL | `panoptic_fpn_R50` | GeForce RTX 3090 | **26.80** | +13.6 | 29.5 (R10) | 29.5 | +0.0 |
+| Source &mdash; Semantic FPN specialist | &mdash; | &mdash; | n/a | / | &mdash; | &mdash; | not run |
+| **ST-S** Semantic FPN + our seg CTTA | `semantic_R50` | L40S | **34.39** | / | 35.2 (R4) | 33.6 | -1.6 |
+| Source &mdash; Panoptic FPN MTL | `panoptic_fpn_R50` | GeForce RTX 3090 | **27.21** | / | &mdash; | &mdash; | frozen |
+| E21 seg-only on Panoptic FPN MTL | `panoptic_fpn_R50` | GeForce RTX 3090 | **28.21** | +1.0 | 29.2 (R3) | 26.7 | -2.5 |
+| E13a full MTL on Panoptic FPN | `panoptic_fpn_R50` | GeForce RTX 3090 | **30.83** | +3.6 | 33.2 (R3) | 28.1 | -5.2 |
 
 `Gain` is measured against the source row immediately above each block, i.e. each arm's own checkpoint. `Drift` is round 10 minus the best round: how much of the peak is given back over the stream.
+
+> **Checkpoint identity.** The `host GPU` column identifies the machine. ST-D and ST-S ran on the L40S host against *that machine's* specialist checkpoints, which are not necessarily the same files as the Cronus copies whose md5s appear in section 1. Their source-only rows must be produced on the same host, or the Gain compares two different models.
 
 **ST-D** ties E15 (+0.4 mAP0.5, inside the ~0.5 noise floor): a dedicated detector gives no advantage over the multi-task checkpoint for detection CTTA, so the MTL source is not handicapping detection.
 

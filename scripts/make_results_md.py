@@ -122,6 +122,17 @@ CKPT_OF = {
 }
 
 
+def host_gpu(path):
+    """The GPU detectron2 logged for this run; identifies the machine."""
+    if not os.path.exists(path):
+        return "?"
+    for line in open(path, errors="ignore"):
+        m = re.search(r"NVIDIA ([A-Za-z0-9 ]+?)\s*\(arch", line)
+        if m:
+            return m.group(1).strip()
+    return "not logged"
+
+
 def parse(path):
     """Per-evaluation AP50 and mIoU, plus an estimate of adaptation steps."""
     ap, iou, task = [], [], None
@@ -382,8 +393,8 @@ def main():
       "with the tables above and must never be merged into them. Absolute means "
       "are not comparable across different sources &mdash; only each arm's gain "
       "over *its own* source, and its own trajectory, are.\n")
-    w("| Condition | source checkpoint | Mean | Gain | Peak | R10 | Drift |")
-    w("|---|---|---|---|---|---|---|")
+    w("| Condition | source checkpoint | host GPU | Mean | Gain | Peak | R10 | Drift |")
+    w("|---|---|---|---|---|---|---|---|")
 
     def lt_subset(vals):
         """A 12-corruption source pass restricted to the five long-term domains."""
@@ -396,15 +407,16 @@ def main():
         v = data.get(stem, (None, None, None))
         vals = v[0] if kind == "det" else v[1]
         frozen = stem.startswith("source_only")
+        gpu = host_gpu(os.path.join(a.logs, f"{stem}.log"))
         if frozen:
             vals = lt_subset(vals)
         if not vals:
-            w(f"| {label} | &mdash; | n/a | / | &mdash; | &mdash; | not run |")
+            w(f"| {label} | &mdash; | &mdash; | n/a | / | &mdash; | &mdash; | not run |")
             continue
         m = mean(vals)
         if frozen:
             src_of[kind] = m
-            w(f"| {label} | `{CKPT_OF.get(stem, '?')}` | **{m:.2f}** | / | "
+            w(f"| {label} | `{CKPT_OF.get(stem, '?')}` | {gpu} | **{m:.2f}** | / | "
               "&mdash; | &mdash; | frozen |")
             continue
         base = src_of.get(kind)
@@ -412,13 +424,18 @@ def main():
         per = 5
         rs = [mean(vals[i * per:(i + 1) * per]) for i in range(len(vals) // per)]
         peak = max(rs)
-        w(f"| {label} | `{CKPT_OF.get(stem, '?')}` | **{m:.2f}** | {gain} | "
+        w(f"| {label} | `{CKPT_OF.get(stem, '?')}` | {gpu} | **{m:.2f}** | {gain} | "
           f"{peak:.1f} (R{rs.index(peak) + 1}) | {rs[-1]:.1f} | "
           f"{rs[-1] - peak:+.1f} |")
     w("")
     w("`Gain` is measured against the source row immediately above each block, "
       "i.e. each arm's own checkpoint. `Drift` is round 10 minus the best round: "
       "how much of the peak is given back over the stream.\n")
+    w("> **Checkpoint identity.** The `host GPU` column identifies the machine. "
+      "ST-D and ST-S ran on the L40S host against *that machine's* specialist "
+      "checkpoints, which are not necessarily the same files as the Cronus "
+      "copies whose md5s appear in section 1. Their source-only rows must be "
+      "produced on the same host, or the Gain compares two different models.\n")
     w("**ST-D** ties E15 (+0.4 mAP0.5, inside the ~0.5 noise floor): a dedicated "
       "detector gives no advantage over the multi-task checkpoint for detection "
       "CTTA, so the MTL source is not handicapping detection.\n")
