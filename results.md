@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-15 13:26 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-15 14:53 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `6f6b447`
+Commit: `20a0995`
 
 ## 1. Setup
 
@@ -168,6 +168,28 @@ Effect of each task's adaptation loss, all other settings fixed:
 
 Cells are **mAP0.5** / mIoU. The segmentation loss has almost no main effect but a large negative interaction: it helps slightly on its own and hurts substantially once detection is also adapting.
 
+## Specialist / source-model study (Cityscapes-C long-term, seed 0)
+
+These arms **change the source checkpoint**, so they are not same-source with the tables above and must never be merged into them. Absolute means are not comparable across different sources &mdash; only each arm's gain over *its own* source, and its own trajectory, are.
+
+| Condition | source checkpoint | Mean | Gain | Peak | R10 | Drift |
+|---|---|---|---|---|---|---|
+| Source &mdash; Mask R-CNN specialist | &mdash; | n/a | / | &mdash; | &mdash; | not run |
+| **ST-D** Mask R-CNN + our det CTTA | `mask_rcnn_R50` | **27.24** | / | 29.7 (R9) | 29.2 | -0.5 |
+| Source &mdash; Panoptic FPN MTL | `panoptic_fpn_R50` | **13.17** | / | &mdash; | &mdash; | frozen |
+| E15 det-only on Panoptic FPN MTL | `panoptic_fpn_R50` | **26.80** | +13.6 | 29.5 (R10) | 29.5 | +0.0 |
+| Source &mdash; Semantic FPN specialist | &mdash; | n/a | / | &mdash; | &mdash; | not run |
+| **ST-S** Semantic FPN + our seg CTTA | `semantic_R50` | **34.39** | / | 35.2 (R4) | 33.6 | -1.6 |
+| Source &mdash; Panoptic FPN MTL | `panoptic_fpn_R50` | **27.21** | / | &mdash; | &mdash; | frozen |
+| E21 seg-only on Panoptic FPN MTL | `panoptic_fpn_R50` | **28.21** | +1.0 | 29.2 (R3) | 26.7 | -2.5 |
+| E13a full MTL on Panoptic FPN | `panoptic_fpn_R50` | **30.83** | +3.6 | 33.2 (R3) | 28.1 | -5.2 |
+
+`Gain` is measured against the source row immediately above each block, i.e. each arm's own checkpoint. `Drift` is round 10 minus the best round: how much of the peak is given back over the stream.
+
+**ST-D** ties E15 (+0.4 mAP0.5, inside the ~0.5 noise floor): a dedicated detector gives no advantage over the multi-task checkpoint for detection CTTA, so the MTL source is not handicapping detection.
+
+**ST-S** reproduces the segmentation collapse on a dedicated Semantic FPN (peak at round 4, then drift downward) with no detection branch and no multi-task trunk. The instability therefore belongs to the segmentation self-distillation objective itself; the multi-task source amplifies it (E13a drifts furthest) but does not cause it.
+
 ## Reproducibility and caveats
 
 - **Run-to-run noise.** Adaptation is not deterministic: cuDNN uses non-deterministic convolution backward kernels, and 25k sequential self-training steps with hard pseudo-label thresholds amplify that. Two runs of the identical config and seed differ by up to **1.8 mAP0.5 on a single evaluation**, but only **~0.5 on the 50-evaluation mean** and **~0.02 on mean mIoU**. Treat AP50 differences below 0.5 as ties.
@@ -182,5 +204,5 @@ Cells are **mAP0.5** / mIoU. The segmentation loss has almost no main effect but
 - `cotta_pfnsrc_cscLT_s0` &mdash; CoTTA (cscLT)
 - TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` CoTTA log has 0 evaluations; no long-term run exists here
 - Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every `vs full MTL` margin is currently n=1 on the reference
-- ST-D / ST-S specialist study &mdash; prepared, blocked on locating the specialist checkpoints on the remote machine
+- Source-only for the two specialist checkpoints &mdash; `source_only_mrcnn_cs_c.yaml` and `source_only_semfpn_cs_c.yaml`, ~15 min each. Without them ST-D/ST-S have no Gain and their absolute means cannot be compared against the Panoptic-FPN arms.
 

@@ -1,0 +1,26 @@
+# Source-only (no adaptation) evaluation of the Semantic FPN R50 segmentation
+# specialist on Cityscapes-C, mirroring source_only_pfn_cs_c.yaml.
+#
+# Needed to interpret ST-S. Its round-1 mIoU is 33.2 against E21's 28.3 and
+# E15's 30.2, so the three arms plainly start from different segmentation
+# quality and their absolute means are not comparable. Only a per-arm gain over
+# its own source is.
+#
+# Semantic-only dataset names: a SemanticSegmentor emits no detections.
+_BASE_: "./semantic_R_50_FPN_singletask.yaml"
+
+MODEL:
+  META_ARCHITECTURE: "SemanticSegmentor"
+  WEIGHTS: "/workspace/output/semantic_R50_cityscapes/model_final.pth"
+
+INPUT:
+  MIN_SIZE_TEST: 1024
+  MAX_SIZE_TEST: 2048
+
+DATASETS:
+  TEST: ("defocus_blur_semseg", "glass_blur_semseg", "motion_blur_semseg",
+         "zoom_blur_semseg", "snow_semseg", "frost_semseg", "fog_semseg",
+         "brightness_semseg", "contrast_semseg", "elastic_transform_semseg",
+         "pixelate_semseg", "jpeg_compression_semseg")
+
+OUTPUT_DIR: "/workspace/output/ctta_acdc/source_only_semfpn_cs_c"
