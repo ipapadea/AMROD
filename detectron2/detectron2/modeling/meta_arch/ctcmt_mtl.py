@@ -388,6 +388,20 @@ class CTCMT_MTL(nn.Module):
         self.freeze_shared_trunk = bool(
             getattr(cfg.SOLVER, "CTCMT_FREEZE_SHARED_TRUNK", False)
         )
+        self.aux_trunk_lambda = float(getattr(cfg.SOLVER, "CTCMT_AUX_TRUNK_LAMBDA", 0.0))
+        if not 0.0 <= self.aux_trunk_lambda <= 1.0:
+            raise ValueError(
+                "CTCMT_AUX_TRUNK_LAMBDA must be in [0, 1], got "
+                f"{self.aux_trunk_lambda}"
+            )
+        self.adaptive_routing = bool(getattr(cfg.SOLVER, "CTCMT_ADAPTIVE_ROUTING", False))
+        self.adaptive_routing_beta = float(
+            getattr(cfg.SOLVER, "CTCMT_ADAPTIVE_ROUTING_BETA", 0.98))
+        self.adaptive_routing_ema = float(
+            getattr(cfg.SOLVER, "CTCMT_ADAPTIVE_ROUTING_EMA", 0.99))
+        self._seg_agree_ema = None      # teacher/anchor pixel agreement
+        self._seg_agree_max = 0.0
+        self._route_lambda = self.aux_trunk_lambda
         self.grad_diag = bool(getattr(cfg.SOLVER, "CTCMT_GRAD_DIAG", False))
         self.grad_diag_every = max(int(getattr(cfg.SOLVER, "CTCMT_GRAD_DIAG_EVERY", 50)), 1)
         self._param_index = None            # [(name, param)], built lazily
@@ -907,6 +921,21 @@ class CTCMT_MTL(nn.Module):
         return torch.stack(box_losses).mean()
 
     @torch.no_grad()
+    def _update_route_lambda(self, agree: float) -> float:
+        """Open the trunk while the seg teacher stays near its best agreement
+        with the frozen source anchor; close it once drift accumulates.
+
+        Self-calibrating: compares the agreement EMA against its own running
+        maximum, so no absolute threshold has to be guessed.
+        """
+        d = self.adaptive_routing_ema
+        self._seg_agree_ema = (agree if self._seg_agree_ema is None
+                               else d * self._seg_agree_ema + (1.0 - d) * agree)
+        self._seg_agree_max = max(self._seg_agree_max, self._seg_agree_ema)
+        ok = self._seg_agree_ema >= self.adaptive_routing_beta * self._seg_agree_max
+        self._route_lambda = self.aux_trunk_lambda if ok else 0.0
+        return self._route_lambda
+
     def _update_class_marginal(self, teacher_probs):
         """Running EMA of the teacher's predicted class marginal."""
         m = teacher_probs.mean(dim=(0, 2, 3)).float()
@@ -991,11 +1020,14 @@ class CTCMT_MTL(nn.Module):
                 total.backward()
                 if self.conflict_mode == "aux_head_only" and det_loss is None:
                     # Routing is unconditional, so the aux objective must not
-                    # reach the trunk even on steps with no detection gradient.
+                    # reach the trunk at full strength even on steps with no
+                    # detection gradient.
                     self._ensure_param_index()
+                    lam = self._route_lambda
                     for n, p in self._param_index:
-                        if n in self._shared_set:
-                            p.grad = None
+                        if n not in self._shared_set or p.grad is None:
+                            continue
+                        p.grad = None if lam == 0.0 else p.grad * lam
                     self._conflict_stats["aux_only_routed"] = (
                         self._conflict_stats.get("aux_only_routed", 0) + 1)
             return diag
@@ -1073,9 +1105,10 @@ class CTCMT_MTL(nn.Module):
             diag["decoupled"] = conflict
         elif self.conflict_mode == "aux_head_only":
             # Detection owns the shared representation; the auxiliary objective
-            # only ever updates its own head. Unconditional, not conflict-gated.
-            c_aux_shared = 0.0
+            # reaches the trunk only through lambda (0 = S6, 1 = joint update).
+            c_aux_shared = self._route_lambda
             diag["decoupled"] = True
+            diag["lam"] = c_aux_shared
         elif self.conflict_mode == "dyn_weight":
             gamma = max(0.0, cos)
             c_aux_shared = c_aux_other = gamma
@@ -1809,6 +1842,19 @@ class CTCMT_MTL(nn.Module):
                 loss_dict["seg/anchor_marginal"] = (
                     self.anchor_marginal_weight * (q * (q.log() - p.log())).sum()
                 )
+
+            # Reliability signal for adaptive routing: how far the seg teacher
+            # has drifted from the frozen source anchor. The anchor forward is
+            # already paid for above, so this costs one argmax comparison.
+            if self.adaptive_routing and anchor_seg_probs is not None:
+                with torch.no_grad():
+                    a = F.interpolate(
+                        anchor_seg_probs, size=teacher_seg_probs_full.shape[-2:],
+                        mode="bilinear", align_corners=False,
+                    ).argmax(dim=1)
+                    agree = float((teacher_seg_probs_full.argmax(dim=1) == a)
+                                  .float().mean().item())
+                self._update_route_lambda(agree)
         else:
             teacher_seg_probs_full = None
 
@@ -1880,8 +1926,14 @@ class CTCMT_MTL(nn.Module):
             thr = f" thr={min(_t):.3f}/{sum(_t)/len(_t):.3f}/{max(_t):.3f}" if _t else ""
             aug = (f" segaug={self._seg_aug_fired}/{self._seg_steps}"
                    if self.seg_aug_enabled else "")
+            rt = ""
+            if self.conflict_mode == "aux_head_only":
+                rt = f" lam={self._route_lambda:.2f}"
+                if self.adaptive_routing and self._seg_agree_ema is not None:
+                    rt += (f" agree={self._seg_agree_ema:.4f}"
+                           f"/{self._seg_agree_max:.4f}")
             print(f"[CT-CMT-MTL] iter={self.iter} score_em={self.score_em:.3f} "
-                  f"n_pseudo={len(pseudo_inst[0])}{thr}{aug}{tag} {summary}")
+                  f"n_pseudo={len(pseudo_inst[0])}{thr}{aug}{rt}{tag} {summary}")
             s = self._conflict_stats
             if s["both"] > 0:
                 n = s["both"]

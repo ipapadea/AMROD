@@ -7,6 +7,7 @@ Also asserts the shared protocol invariants the batch depends on.
 
   python scripts/verify_screening_configs.py
 """
+import os
 import sys
 
 from detectron2.config import get_cfg
@@ -151,6 +152,47 @@ for name, (path, allowed) in ACDC_ARMS.items():
         failures.append(f"{name}: source checkpoint changed")
     if cfg["SOLVER.THRESHOLD_MAX"] != 0.90:
         failures.append(f"{name}: THRESHOLD_MAX must stay 0.90 on ACDC")
+    print()
+
+# --- Options O1-O3: one factor each from their S6 parent, on both protocols.
+OPTION_ARMS = {
+    "e26_partial025":           (f"{CFGDIR}/ctcmt_e26_partial025.yaml",
+                                 f"{CFGDIR}/ctcmt_e22_seghead_only.yaml",
+                                 {"SOLVER.CTCMT_AUX_TRUNK_LAMBDA", "OUTPUT_DIR"}),
+    "e27_s6_entropy":           (f"{CFGDIR}/ctcmt_e27_s6_entropy.yaml",
+                                 f"{CFGDIR}/ctcmt_e22_seghead_only.yaml",
+                                 {"SOLVER.CTCMT_ENTROPY_WEIGHTED_CE", "OUTPUT_DIR"}),
+    "e28_adaptive_routing":     (f"{CFGDIR}/ctcmt_e28_adaptive_routing.yaml",
+                                 f"{CFGDIR}/ctcmt_e26_partial025.yaml",
+                                 {"SOLVER.CTCMT_ADAPTIVE_ROUTING", "OUTPUT_DIR"}),
+    "e26_partial025_acdc":      (f"{CFGDIR}/ctcmt_e26_partial025_acdc.yaml",
+                                 f"{CFGDIR}/ctcmt_e24_seghead_only_acdc.yaml",
+                                 {"SOLVER.CTCMT_AUX_TRUNK_LAMBDA", "OUTPUT_DIR"}),
+    "e27_s6_entropy_acdc":      (f"{CFGDIR}/ctcmt_e27_s6_entropy_acdc.yaml",
+                                 f"{CFGDIR}/ctcmt_e24_seghead_only_acdc.yaml",
+                                 {"SOLVER.CTCMT_ENTROPY_WEIGHTED_CE", "OUTPUT_DIR"}),
+    "e28_adaptive_routing_acdc": (f"{CFGDIR}/ctcmt_e28_adaptive_routing_acdc.yaml",
+                                  f"{CFGDIR}/ctcmt_e26_partial025_acdc.yaml",
+                                  {"SOLVER.CTCMT_ADAPTIVE_ROUTING", "OUTPUT_DIR"}),
+}
+print("OPTIONS O1-O3 (each vs its own parent)")
+for name, (path, parent, allowed) in OPTION_ARMS.items():
+    cfg, par = flatten(load(path)), flatten(load(parent))
+    diff = {k for k in set(cfg) | set(par)
+            if cfg.get(k, "<missing>") != par.get(k, "<missing>")}
+    print(f"--- {name}  (parent {os.path.basename(parent)})")
+    for k in sorted(diff):
+        mark = "  " if k in allowed else "!!"
+        print(f"  {mark} {k}: {par.get(k, '<missing>')!r} -> {cfg.get(k, '<missing>')!r}")
+    if diff - allowed:
+        failures.append(f"{name}: unintended diff vs parent: {sorted(diff - allowed)}")
+    if cfg["SOLVER.CTCMT_CONFLICT_MODE"] != "aux_head_only":
+        failures.append(f"{name}: must stay on the aux_head_only routing path")
+    if cfg["MODEL.WEIGHTS"] != par["MODEL.WEIGHTS"]:
+        failures.append(f"{name}: source checkpoint changed")
+    lam = cfg["SOLVER.CTCMT_AUX_TRUNK_LAMBDA"]
+    if not 0.0 <= lam <= 1.0:
+        failures.append(f"{name}: lambda {lam} outside [0, 1]")
     print()
 
 if failures:

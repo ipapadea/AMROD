@@ -63,6 +63,13 @@ def make(mode, grad_diag=False, alpha=0.5):
     m.grad_diag = grad_diag
     m.grad_diag_every = 1
     m.iter = 0
+    m.aux_trunk_lambda = 0.0
+    m._route_lambda = 0.0
+    m.adaptive_routing = False
+    m.adaptive_routing_beta = 0.98
+    m.adaptive_routing_ema = 0.99
+    m._seg_agree_ema = None
+    m._seg_agree_max = 0.0
     m._param_index = None
     m._shared_names = None
     m._conflict_stats = {
@@ -193,6 +200,53 @@ for FLIP in (+1.0, -1.0):
     assert m.student.sem_seg_head.weight.grad is not None, "seg head must still adapt"
     print("  [ok] aux_head_only  det-absent step: trunk untouched, seg head adapts")
 
+    # --- 4d. aux_head_only with a routing fraction lambda ------------------
+    # lambda interpolates: 0 == S6, 1 == the plain joint update. The heads must
+    # keep their FULL gradient at every lambda.
+    for lam in (0.0, 0.25, 1.0):
+        m = make("aux_head_only")
+        m.aux_trunk_lambda = m._route_lambda = lam
+        gd = grads_of(m, X, FLIP, "det")
+        ga = grads_of(m, X, FLIP, "aux")
+        m.optimizer.zero_grad()
+        m._backward_and_combine(losses(m.student, X, FLIP))
+        got = {n: (p.grad.clone() if p.grad is not None else None)
+               for n, p in m.student.named_parameters()}
+        want = gdv + lam * gav
+        assert torch.allclose(flat(got, SHARED), want, atol=1e-6), lam
+        for n in HEADS:
+            ref = (gd[n] if gd[n] is not None else 0) + (ga[n] if ga[n] is not None else 0)
+            assert torch.allclose(got[n], ref, atol=1e-7), (lam, n)
+    print("  [ok] aux_head_only lambda in {0, 0.25, 1}: trunk == g_det + lam*g_aux, "
+          "heads full")
+
+    # lambda=1 must equal the plain joint backward, and lambda=0 must equal S6.
+    m1 = make("aux_head_only"); m1.aux_trunk_lambda = m1._route_lambda = 1.0
+    m1.optimizer.zero_grad(); m1._backward_and_combine(losses(m1.student, X, FLIP))
+    m0 = make("none")
+    m0.optimizer.zero_grad(); sum(losses(m0.student, X, FLIP).values()).backward()
+    for n in SHARED + HEADS:
+        a = dict(m1.student.named_parameters())[n].grad
+        b = dict(m0.student.named_parameters())[n].grad
+        assert torch.allclose(a, b, atol=1e-6), n
+    print("  [ok] lambda=1 reproduces the plain joint update exactly")
+
+    # --- 4e. det-absent step scales the trunk by lambda, not by 1 ----------
+    for lam, expect_none in ((0.0, True), (0.25, False)):
+        m = make("aux_head_only")
+        m.aux_trunk_lambda = m._route_lambda = lam
+        ld = losses(m.student, X, FLIP); ld.pop("det/cls")
+        ref = grads_of(m, X, FLIP, "aux")
+        m.optimizer.zero_grad()
+        m._backward_and_combine(ld)
+        g = m.student.backbone.weight.grad
+        if expect_none:
+            assert g is None, "lambda=0 must leave the trunk untouched"
+        else:
+            assert torch.allclose(g, ref["backbone.weight"] * lam, atol=1e-6), lam
+        assert m.student.sem_seg_head.weight.grad is not None
+    print("  [ok] det-absent step: trunk scaled by lambda, seg head still adapts")
+
     # --- 5. cagrad ---------------------------------------------------------
     ALPHA = 0.5
     m, gd, ga, got, diag = run("cagrad", FLIP, alpha=ALPHA)
@@ -258,3 +312,37 @@ for FLIP in (+1.0, -1.0):
     print("  [ok] all-constant loss dict handled")
 
 print("\nALL CONFLICT-MODE TESTS PASSED")
+
+# --- 9. adaptive routing gate (Option 3) ---------------------------------
+# The trunk should stay open while the seg teacher holds its agreement with the
+# frozen anchor, and close once that agreement decays past beta of its own peak.
+g = make("aux_head_only")
+g.aux_trunk_lambda = 0.25
+g.adaptive_routing = True
+g.adaptive_routing_beta = 0.98
+g.adaptive_routing_ema = 0.9          # fast EMA so the test is short
+
+lam_first = g._update_route_lambda(0.90)
+assert lam_first == 0.25, "first step must open the trunk"
+for _ in range(20):                    # hold steady -> stays open
+    lam = g._update_route_lambda(0.90)
+assert lam == 0.25, f"steady agreement must keep lambda open, got {lam}"
+peak = g._seg_agree_max
+for _ in range(50):                    # teacher drifts away from source
+    lam = g._update_route_lambda(0.40)
+assert lam == 0.0, f"drifting agreement must close the trunk, got {lam}"
+assert g._seg_agree_max == peak, "running max must not follow the decay"
+for _ in range(200):                   # recovery re-opens it
+    lam = g._update_route_lambda(0.95)
+assert lam == 0.25, "recovered agreement must re-open the trunk"
+print(f"  [ok] adaptive routing: open at steady agreement, closes on drift "
+      f"(peak {peak:.3f}), re-opens on recovery")
+
+# lambda=0 arms must ignore the gate entirely.
+g0 = make("aux_head_only")
+g0.aux_trunk_lambda = 0.0
+g0.adaptive_routing = True
+assert g0._update_route_lambda(0.99) == 0.0, "lambda=0 must stay 0 whatever the gate"
+print("  [ok] adaptive routing cannot raise lambda above CTCMT_AUX_TRUNK_LAMBDA")
+
+print("\nALL ROUTING TESTS PASSED")

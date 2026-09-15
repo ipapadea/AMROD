@@ -675,6 +675,20 @@ _C.SOLVER.CTCMT_CONFLICT_MODE = "none"
 _C.SOLVER.CTCMT_CAGRAD_ALPHA = 0.5
 # S4: freeze the shared backbone/FPN; only task-specific heads adapt.
 _C.SOLVER.CTCMT_FREEZE_SHARED_TRUNK = False
+
+# Fraction of the auxiliary gradient allowed into the shared trunk under
+# CTCMT_CONFLICT_MODE="aux_head_only". 0.0 is S6 (segmentation adapts its own
+# head only), 1.0 reproduces the plain joint update, values between the two
+# interpolate. The auxiliary heads always receive their full gradient.
+_C.SOLVER.CTCMT_AUX_TRUNK_LAMBDA = 0.0
+# Gate that fraction on segmentation reliability: while the seg teacher stays
+# close to the frozen source anchor, allow lambda into the trunk; once it
+# drifts, stop the auxiliary gradient at the head. Self-calibrating - it
+# compares the agreement EMA against its own running maximum, so no absolute
+# threshold has to be guessed.
+_C.SOLVER.CTCMT_ADAPTIVE_ROUTING = False
+_C.SOLVER.CTCMT_ADAPTIVE_ROUTING_BETA = 0.98
+_C.SOLVER.CTCMT_ADAPTIVE_ROUTING_EMA = 0.99
 # Per-loss-component gradient-conflict diagnostics (extra backward per
 # component on the sampled steps). Logging only -- never changes the update.
 _C.SOLVER.CTCMT_GRAD_DIAG = False
