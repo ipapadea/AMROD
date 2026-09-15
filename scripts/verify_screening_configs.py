@@ -121,6 +121,38 @@ outs = [flatten(load(p))["OUTPUT_DIR"] for p, _ in ARMS.values()]
 if len(set(outs)) != len(outs):
     failures.append(f"duplicate OUTPUT_DIRs: {outs}")
 
+# --- ACDC arms are one factor from E11, not E13a. The 0.80 threshold ceiling
+# was a Cityscapes-C-specific fix and is deliberately NOT part of the ACDC
+# recipe, so these are checked against their own base.
+ACDC_BASE = f"{CFGDIR}/ctcmt_e11_bothsc_ctcrD.yaml"
+ACDC_ARMS = {
+    "e24_seghead_only_acdc": (f"{CFGDIR}/ctcmt_e24_seghead_only_acdc.yaml", {
+        "SOLVER.CTCMT_CONFLICT_MODE", "SOLVER.CTCMT_GRAD_DIAG", "OUTPUT_DIR",
+    }),
+    "e25_detonly_acdc": (f"{CFGDIR}/ctcmt_e25_detonly_acdc.yaml", {
+        "SOLVER.CTCMT_DET_ONLY", "OUTPUT_DIR",
+    }),
+}
+acdc_base = flatten(load(ACDC_BASE))
+print(f"ACDC BASE = {ACDC_BASE}  (THRESHOLD_MAX={acdc_base['SOLVER.THRESHOLD_MAX']})")
+if acdc_base["SOLVER.THRESHOLD_MAX"] != 0.90:
+    failures.append("ACDC base must keep THRESHOLD_MAX 0.90")
+for name, (path, allowed) in ACDC_ARMS.items():
+    cfg = flatten(load(path))
+    diff = {k for k in set(acdc_base) | set(cfg)
+            if acdc_base.get(k, "<missing>") != cfg.get(k, "<missing>")}
+    print(f"--- {name}  ({path})")
+    for k in sorted(diff):
+        mark = "  " if k in allowed else "!!"
+        print(f"  {mark} {k}: {acdc_base.get(k, '<missing>')!r} -> {cfg.get(k, '<missing>')!r}")
+    if diff - allowed:
+        failures.append(f"{name}: unintended diff vs E11: {sorted(diff - allowed)}")
+    if cfg["MODEL.WEIGHTS"] != acdc_base["MODEL.WEIGHTS"]:
+        failures.append(f"{name}: source checkpoint changed")
+    if cfg["SOLVER.THRESHOLD_MAX"] != 0.90:
+        failures.append(f"{name}: THRESHOLD_MAX must stay 0.90 on ACDC")
+    print()
+
 if failures:
     print("FAILED:")
     for f in failures:

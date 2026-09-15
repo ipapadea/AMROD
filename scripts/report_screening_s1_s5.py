@@ -39,6 +39,25 @@ CONTROLS = [
     ("amrod_pfnsrc_cscLT_cronus_s0", "AMROD (PFN src)"),
 ]
 
+# ACDC uses a 4-domain cycle and a different reference recipe (E11, thr 0.9).
+ACDC_CONTROLS = [
+    ("e11_bothsc_ctcrD_acdcLT_s0", "B0 e11 full MTL"),
+    ("e25_detonly_acdc_acdcLT_s0", "B1 e25 det-only"),
+    ("amrod_pfnsrc_acdcLT_s0", "AMROD (PFN src)"),
+    ("tent_pfnsrc_acdcLT_s0", "TENT (PFN src)"),
+    ("cotta_pfnsrc_acdcLT_s0", "CoTTA (PFN src)"),
+]
+ACDC_ARMS = [
+    ("e24_seghead_only_acdc_acdcLT_s0", "S6 seg-head-only routing"),
+]
+
+PROTOCOLS = {
+    "csc":  {"domains": 5, "rounds": 10, "controls": CONTROLS, "arms": ARMS,
+             "ref": ("e13a", 24.80), "ceiling": ("e15", 26.80)},
+    "acdc": {"domains": 4, "rounds": 10, "controls": ACDC_CONTROLS, "arms": ACDC_ARMS,
+             "ref": ("e11", None), "ceiling": ("e25", None)},
+}
+
 
 def parse_log(path):
     """Per-evaluation AP50 / mIoU, plus the last gradient-diagnostic lines."""
@@ -82,8 +101,16 @@ def mean(xs):
     return sum(xs) / len(xs) if xs else float("nan")
 
 
-def rounds(vals, n=10, complete_only=True):
-    """Mean per round of 5 domains.
+def std(xs):
+    """Sample standard deviation; nan for fewer than two seeds."""
+    if len(xs) < 2:
+        return float("nan")
+    m = mean(xs)
+    return (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+
+
+def rounds(vals, n=10, complete_only=True, per=5):
+    """Mean per round of ``per`` domains.
 
     A partial round is not comparable: the cycle mixes an easy domain (fog,
     AP50 ~47) with a catastrophic one (snow, AP50 ~1), so averaging 2 of 5
@@ -91,53 +118,114 @@ def rounds(vals, n=10, complete_only=True):
     """
     out = []
     for i in range(n):
-        chunk = vals[i * 5:(i + 1) * 5]
-        if not chunk or (complete_only and len(chunk) < 5):
+        chunk = vals[i * per:(i + 1) * per]
+        if not chunk or (complete_only and len(chunk) < per):
             continue
         out.append(mean(chunk))
     return out
 
 
+def seed_table(entries, logdir, seeds, per, nr):
+    """Aggregate each arm over its seed variants: mean +- std of the run means."""
+    total = per * nr
+    print(f"\nSEED-AGGREGATED  (seeds {', '.join(map(str, seeds))})")
+    print(f"{'arm':<34}{'n':>3}{'AP50 mean+-std':>20}{'mIoU mean+-std':>20}   per-seed AP50")
+    print("-" * 112)
+    for name, label in entries:
+        base = name.rsplit("_s", 1)[0]
+        aps, ious, tags = [], [], []
+        for s in seeds:
+            path = os.path.join(logdir, f"{base}_s{s}.log")
+            if not os.path.exists(path):
+                continue
+            ap50, miou, _, _, crashed = parse_log(path)
+            if crashed or max(len(ap50), len(miou)) != total:
+                tags.append(f"s{s}:incomplete")
+                continue
+            if ap50:
+                aps.append(mean(ap50))
+            if miou:
+                ious.append(mean(miou))
+            tags.append(f"s{s}:{mean(ap50):.2f}" if ap50 else f"s{s}:--")
+        if not tags:
+            print(f"{label:<34}{'--':>3}   (no complete runs)")
+            continue
+        a = f"{mean(aps):.2f} +- {std(aps):.2f}" if aps else "--"
+        i = f"{mean(ious):.2f} +- {std(ious):.2f}" if ious else "--"
+        print(f"{label:<34}{len(aps) or len(ious):>3}{a:>20}{i:>20}   {' '.join(tags)}")
+    print("\nA difference smaller than the spread between seeds is not a result.")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--logs", default="/media/ilias/DATA/ilias/amrod_output/logs")
+    p.add_argument("--protocol", default="csc", choices=sorted(PROTOCOLS))
+    p.add_argument("--seeds", default="",
+                   help="comma-separated seeds; aggregates each arm across them")
     a = p.parse_args()
+    proto = PROTOCOLS[a.protocol]
+    per, nr = proto["domains"], proto["rounds"]
+    total = per * nr
+    entries = proto["controls"] + proto["arms"]
 
-    print(f"{'arm':<34}{'n':>4}{'AP50 mean':>11}{'AP50 R10':>10}"
-          f"{'mIoU mean':>11}{'mIoU R10':>10}   vs e13a / vs e15")
-    print("-" * 108)
+    if a.seeds:
+        seed_table(entries, a.logs, [int(s) for s in a.seeds.split(",")], per, nr)
+        return
+
+    # The two anchors are read from the runs themselves, so the table stays
+    # correct when a protocol's baselines are re-measured.
+    def _mean_ap_iou(stem):
+        path = os.path.join(a.logs, f"{stem}.log")
+        if not os.path.exists(path):
+            return None, None
+        ap, iou, _, _, _ = parse_log(path)
+        k = len(rounds(ap, nr, per=per)) * per
+        return (mean(ap[:k]) if k else None), (mean(iou[:k]) if k else None)
+
+    ref_ap, _ = _mean_ap_iou(proto["controls"][0][0])
+    ceil_ap, _ = _mean_ap_iou(proto["controls"][1][0])
+    ref_name = proto["ref"][0]
+    ceil_name = proto["ceiling"][0]
+
+    print(f"protocol: {a.protocol}  ({per} domains x {nr} rounds = {total} evaluations)")
+    print(f"{'arm':<34}{'n':>4}{'AP50 mean':>11}{'AP50 R%d' % nr:>10}"
+          f"{'mIoU mean':>11}{'mIoU R%d' % nr:>10}   vs {ref_name} / vs {ceil_name}")
+    print("-" * 112)
     rows = {}
-    for name, label in CONTROLS + ARMS:
+    for name, label in entries:
         path = os.path.join(a.logs, f"{name}.log")
         if not os.path.exists(path):
             print(f"{label:<34}{'--':>4}   (missing {name}.log)")
             continue
         ap50, miou, grad, comps, crashed = parse_log(path)
         rows[name] = (label, ap50, miou, grad, comps)
-        r_ap, r_iou = rounds(ap50), rounds(miou)
-        # Compare means over complete rounds only, so an in-progress run is not
-        # scored on a partial cycle.
-        k = len(r_ap) * 5
-        d13 = mean(ap50[:k]) - 24.80
-        d15 = mean(ap50[:k]) - 26.80
+        r_ap = rounds(ap50, nr, per=per)
+        r_iou = rounds(miou, nr, per=per)
+        # Seg-only baselines emit no AP50 and det-only ones no mIoU; judge
+        # completeness on whichever metric the arm actually produces.
+        k = max(len(r_ap), len(r_iou)) * per
+        n_evals = max(len(ap50), len(miou))
+        m_ap = mean(ap50[:k])
+        d13 = m_ap - ref_ap if ref_ap is not None else float("nan")
+        d15 = m_ap - ceil_ap if ceil_ap is not None else float("nan")
         if crashed:
-            flag = f"  *** CRASHED/STALE, {len(r_ap)} rounds - DO NOT COMPARE ***"
-        elif len(ap50) == 50:
+            flag = f"  *** CRASHED/STALE, {k // per} rounds - DO NOT COMPARE ***"
+        elif n_evals == total:
             flag = ""
         else:
-            flag = f"  (running, {len(r_ap)} full rounds)"
-        print(f"{label:<34}{len(ap50):>4}{mean(ap50[:k]):>11.2f}"
+            flag = f"  (running, {k // per} full rounds)"
+        print(f"{label:<34}{n_evals:>4}{m_ap:>11.2f}"
               f"{(r_ap[-1] if r_ap else float('nan')):>10.2f}"
               f"{mean(miou[:k]):>11.2f}{(r_iou[-1] if r_iou else float('nan')):>10.2f}"
               f"   {d13:+6.2f} / {d15:+6.2f}{flag}")
 
-    print("\nAP50 per round (5 domains each) -- the plateau is a flat tail:")
+    print(f"\nAP50 per round ({per} domains each) -- the plateau is a flat tail:")
     for name, (label, ap50, miou, _, _) in rows.items():
-        traj = " ".join(f"{v:5.1f}" for v in rounds(ap50))
+        traj = " ".join(f"{v:5.1f}" for v in rounds(ap50, nr, per=per))
         print(f"  {label:<32} {traj}")
     print("\nmIoU per round:")
     for name, (label, ap50, miou, _, _) in rows.items():
-        traj = " ".join(f"{v:5.1f}" for v in rounds(miou))
+        traj = " ".join(f"{v:5.1f}" for v in rounds(miou, nr, per=per))
         print(f"  {label:<32} {traj}")
 
     print("\nGradient-conflict diagnostics (cumulative at end of stream):")
