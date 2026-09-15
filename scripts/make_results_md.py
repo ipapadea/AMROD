@@ -474,12 +474,13 @@ def main():
         "CoTTA log has 0 evaluations; no long-term run exists here",
         "Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every "
         "`vs full MTL` margin is currently n=1 on the reference",
-        "Source-only for the two specialist checkpoints &mdash; "
-        "`source_only_mrcnn_cs_c.yaml` and `source_only_semfpn_cs_c.yaml`, "
-        "~15 min each, runnable on either host. Without them ST-D/ST-S have no "
-        "Gain and their absolute means cannot be compared against the "
-        "Panoptic-FPN arms.",
     ]
+    if not (data.get("source_only_mrcnn_cs_c", (None,))[0]
+            and data.get("source_only_semfpn_cs_c", (None, None))[1]):
+        PENDING.append(
+            "Source-only for the two specialist checkpoints &mdash; "
+            "`source_only_mrcnn_cs_c.yaml` and `source_only_semfpn_cs_c.yaml`, "
+            "~5 min each. Without them ST-D/ST-S have no Gain.")
     for m in missing:
         w(f"- {m}")
     for m in PENDING:
