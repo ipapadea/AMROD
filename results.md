@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-16 23:19 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-17 00:05 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `46c778c`
+Commit: `6e1d089`
 
 ## 1. Setup
 
@@ -216,6 +216,12 @@ S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (dif
 
 - `tent_pfnsrc_cscLT_s0` &mdash; TENT (cscLT)
 - `cotta_pfnsrc_cscLT_s0` &mdash; CoTTA (cscLT)
+- `e25_detonly_csc12_s0` &mdash; B1 &mdash; detection-only (csc12)
+- `e24_seghead_only_csc12_s0` &mdash; S6 &mdash; seg-head-only routing (csc12)
+- `e27_s6_entropy_csc12_s0` &mdash; O2 &mdash; S6 + entropy CE (csc12)
+- `e25_detonly_acdc4_s0` &mdash; B1 &mdash; detection-only (acdc4)
+- `e24_seghead_only_acdc4_s0` &mdash; S6 &mdash; seg-head-only routing (acdc4)
+- `e27_s6_entropy_acdc4_s0` &mdash; O2 &mdash; S6 + entropy CE (acdc4)
 - TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` CoTTA log has 0 evaluations; no long-term run exists here
 - Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every `vs full MTL` margin is currently n=1 on the reference
 
