@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-16 12:37 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-16 23:19 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `d597dd8`
+Commit: `46c778c`
 
 ## 1. Setup
 
@@ -199,7 +199,7 @@ These arms **change the source checkpoint**, so they are not same-source with th
 |---|---|---|---|
 | E15 det-only (ceiling) | 0,42,123 | 26.93 &plusmn; 0.20 | 35.70 &plusmn; 0.16 |
 | S6 seg-head-only routing | 0,42,123 | 26.76 &plusmn; 0.14 | 34.60 &plusmn; 0.13 |
-| E13a full MTL | 0 | 24.80 (n=1) | 30.83 (n=1) |
+| E13a full MTL | 0,42,123 | 25.07 &plusmn; 0.44 | 31.04 &plusmn; 0.27 |
 | E11 full MTL (ACDC) | 0,42,123 | 43.81 &plusmn; 0.22 | 40.03 &plusmn; 0.27 |
 
 S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (difference 0.17, standard error of the difference 0.14) while **mIoU is a real loss** (difference 1.10, standard error 0.12). Routing recovers the detection ceiling and does not exceed it, and costs about one point of mIoU against not adapting segmentation at all.
