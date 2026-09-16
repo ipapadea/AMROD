@@ -44,10 +44,13 @@ acdc_stream="("; for _ in $(seq 1 10); do
   for w in fog night rain snow; do acdc_stream+="\"acdc_${w}_mtl\","; done
 done; acdc_stream="${acdc_stream%,})"
 
-# proto:name:config:seed:expected_evals
+# Ordered so that round-robin over N GPUs gives each one a mix of the two
+# protocols rather than all the long Cityscapes-C runs on a single GPU.
 JOBS=()
 for s in 42 123; do
   JOBS+=("csc:${OPT}_cscLT_s${s}:${CFG}/ctcmt_${OPT}.yaml:${s}:50")
+done
+for s in 42 123; do
   JOBS+=("acdc:${OPT}_acdc_acdcLT_s${s}:${CFG}/ctcmt_${OPT}_acdc.yaml:${s}:40")
 done
 
@@ -84,14 +87,16 @@ run_one () {
   echo "[gpu $1] DONE  ${name}  $(date +%H:%M:%S)"
 }
 
+# One subshell per GPU, running that GPU's jobs strictly in sequence. Spawning
+# a subshell per JOB would put every run on the GPUs at once.
 pids=()
-for i in "${!TODO[@]}"; do
-  gpu="${GPUS[$((i % ${#GPUS[@]}))]}"
-  ( for j in "${!TODO[@]}"; do
-      [[ $((j % ${#GPUS[@]})) -eq $((i % ${#GPUS[@]})) ]] || continue
-      [[ $j -lt $i ]] && continue
-      [[ $j -eq $i ]] && run_one "${gpu}" "${TODO[$j]}"
-    done ) &
+for g in "${!GPUS[@]}"; do
+  (
+    for i in "${!TODO[@]}"; do
+      [[ $((i % ${#GPUS[@]})) -eq ${g} ]] || continue
+      run_one "${GPUS[$g]}" "${TODO[$i]}"
+    done
+  ) &
   pids+=($!)
 done
 for p in "${pids[@]}"; do wait "$p" || true; done
