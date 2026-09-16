@@ -169,6 +169,14 @@ def mean(xs):
     return sum(xs) / len(xs) if xs else float("nan")
 
 
+def std(xs):
+    """Sample standard deviation; nan for fewer than two values."""
+    if len(xs) < 2:
+        return float("nan")
+    m = mean(xs)
+    return (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+
+
 def build_table(rows, proto, metric, source_vals):
     """rows: list of (label, per-eval values, step_frac, note)."""
     p = PROTOCOLS[proto]
@@ -448,16 +456,61 @@ def main():
       "self-distillation objective itself; the multi-task source amplifies it "
       "(E13a drifts furthest) but does not cause it.\n")
 
+    # ------------------------------------------------------- seed replication
+    SEEDED = [
+        ("e15_detonly_thr080_cscLT_s0", "E15 det-only (ceiling)"),
+        ("e22_seghead_only_cscLT_s0", "S6 seg-head-only routing"),
+        ("e13a_thrmax080_cscLT_s0", "E13a full MTL"),
+        ("e11_bothsc_ctcrD_acdcLT_s0", "E11 full MTL (ACDC)"),
+    ]
+    seed_rows = []
+    for stem, label in SEEDED:
+        base = stem.rsplit("_s", 1)[0]
+        aps, ious, tags = [], [], []
+        for s in (0, 42, 123):
+            p = os.path.join(a.logs, f"{base}_s{s}.log")
+            if not os.path.exists(p):
+                continue
+            ap_, iou_, _ = parse(p)
+            if ap_:
+                aps.append(mean(ap_))
+            if iou_:
+                ious.append(mean(iou_))
+            tags.append(str(s))
+        if aps or ious:
+            seed_rows.append((label, aps, ious, tags))
+    if seed_rows:
+        w("## Seed replication\n")
+        w("| Arm | seeds | mAP0.5 mean &plusmn; std | mIoU mean &plusmn; std |")
+        w("|---|---|---|---|")
+        for label, aps, ious, tags in seed_rows:
+            sa = (f"{mean(aps):.2f} &plusmn; {std(aps):.2f}" if len(aps) > 1
+                  else (f"{mean(aps):.2f} (n=1)" if aps else "&mdash;"))
+            si = (f"{mean(ious):.2f} &plusmn; {std(ious):.2f}" if len(ious) > 1
+                  else (f"{mean(ious):.2f} (n=1)" if ious else "&mdash;"))
+            w(f"| {label} | {','.join(tags)} | {sa} | {si} |")
+        w("")
+        w("S6 versus the detection-only ceiling, over three seeds: "
+          "**mAP0.5 is a tie** (difference 0.17, standard error of the "
+          "difference 0.14) while **mIoU is a real loss** (difference 1.10, "
+          "standard error 0.12). Routing recovers the detection ceiling and "
+          "does not exceed it, and costs about one point of mIoU against not "
+          "adapting segmentation at all.\n")
+
     # ----------------------------------------------------------- caveats
     w("## Reproducibility and caveats\n")
     w("- **Run-to-run noise.** Adaptation is not deterministic: cuDNN uses "
       "non-deterministic convolution backward kernels, and 25k sequential "
       "self-training steps with hard pseudo-label thresholds amplify that. Two "
       "runs of the identical config and seed differ by up to **1.8 mAP0.5 on a "
-      "single evaluation**, but only **~0.5 on the 50-evaluation mean** and "
-      "**~0.02 on mean mIoU**. Treat AP50 differences below 0.5 as ties.\n")
+      "single evaluation**. On the 50-evaluation mean the measured "
+      "seed-to-seed standard deviation is **0.14-0.20 mAP0.5** and "
+      "**0.13-0.16 mIoU** (n=3, E15 and S6), so the standard error on a "
+      "difference between two three-seed arms is about **0.14 mAP0.5**. Treat "
+      "single-seed differences below ~0.4 mAP0.5 as unresolved.\n")
     w("- **Seeds.** Most arms are seed 0 only. Seeds 42/123 exist for E11 "
-      "(both protocols) and are in progress for E22/E15 on Cityscapes-C.\n")
+      "(both protocols) and for E15 and S6 on Cityscapes-C; see the seed "
+      "replication table.\n")
     w("- **Specialist study.** ST-D (Mask R-CNN) and ST-S (Semantic FPN) change "
       "the source checkpoint and are therefore reported separately, never in "
       "the same-source tables above.\n")

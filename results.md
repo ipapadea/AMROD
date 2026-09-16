@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-15 15:44 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-16 12:37 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `4a35f62`
+Commit: `d597dd8`
 
 ## 1. Setup
 
@@ -193,11 +193,22 @@ These arms **change the source checkpoint**, so they are not same-source with th
 
 **ST-S** reproduces the segmentation collapse on a dedicated Semantic FPN (peak at round 4, then drift downward) with no detection branch and no multi-task trunk. The instability therefore belongs to the segmentation self-distillation objective itself; the multi-task source amplifies it (E13a drifts furthest) but does not cause it.
 
+## Seed replication
+
+| Arm | seeds | mAP0.5 mean &plusmn; std | mIoU mean &plusmn; std |
+|---|---|---|---|
+| E15 det-only (ceiling) | 0,42,123 | 26.93 &plusmn; 0.20 | 35.70 &plusmn; 0.16 |
+| S6 seg-head-only routing | 0,42,123 | 26.76 &plusmn; 0.14 | 34.60 &plusmn; 0.13 |
+| E13a full MTL | 0 | 24.80 (n=1) | 30.83 (n=1) |
+| E11 full MTL (ACDC) | 0,42,123 | 43.81 &plusmn; 0.22 | 40.03 &plusmn; 0.27 |
+
+S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (difference 0.17, standard error of the difference 0.14) while **mIoU is a real loss** (difference 1.10, standard error 0.12). Routing recovers the detection ceiling and does not exceed it, and costs about one point of mIoU against not adapting segmentation at all.
+
 ## Reproducibility and caveats
 
-- **Run-to-run noise.** Adaptation is not deterministic: cuDNN uses non-deterministic convolution backward kernels, and 25k sequential self-training steps with hard pseudo-label thresholds amplify that. Two runs of the identical config and seed differ by up to **1.8 mAP0.5 on a single evaluation**, but only **~0.5 on the 50-evaluation mean** and **~0.02 on mean mIoU**. Treat AP50 differences below 0.5 as ties.
+- **Run-to-run noise.** Adaptation is not deterministic: cuDNN uses non-deterministic convolution backward kernels, and 25k sequential self-training steps with hard pseudo-label thresholds amplify that. Two runs of the identical config and seed differ by up to **1.8 mAP0.5 on a single evaluation**. On the 50-evaluation mean the measured seed-to-seed standard deviation is **0.14-0.20 mAP0.5** and **0.13-0.16 mIoU** (n=3, E15 and S6), so the standard error on a difference between two three-seed arms is about **0.14 mAP0.5**. Treat single-seed differences below ~0.4 mAP0.5 as unresolved.
 
-- **Seeds.** Most arms are seed 0 only. Seeds 42/123 exist for E11 (both protocols) and are in progress for E22/E15 on Cityscapes-C.
+- **Seeds.** Most arms are seed 0 only. Seeds 42/123 exist for E11 (both protocols) and for E15 and S6 on Cityscapes-C; see the seed replication table.
 
 - **Specialist study.** ST-D (Mask R-CNN) and ST-S (Semantic FPN) change the source checkpoint and are therefore reported separately, never in the same-source tables above.
 
