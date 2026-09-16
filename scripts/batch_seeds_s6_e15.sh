@@ -39,19 +39,35 @@ if [[ "${WITH_E13A}" == "1" ]]; then
   QUEUE_B+=("e13a_thrmax080_cscLT_s123:${E13A}:123")
 fi
 
-# Refuse to clobber a completed run: run_mixed_lt_local.sh rm -rf's its output
-# dir and truncates its log on start.
-for job in "${QUEUE_A[@]}" "${QUEUE_B[@]}"; do
-  name="${job%%:*}"
-  if [[ -f "${HOST_OUT}/logs/${name}.log" ]] \
-     && [[ "$(grep -c 'in csv format' "${HOST_OUT}/logs/${name}.log")" -eq 50 ]]; then
-    echo "ERROR: ${name} already has a complete 50-eval log; move it aside first." >&2
-    exit 2
-  fi
-done
+# Skip jobs that already finished rather than aborting: run_mixed_lt_local.sh
+# rm -rf's its output dir and truncates its log on start, so a completed run
+# must never be re-entered, but a partly-written one is safe to redo. This
+# makes the script idempotent - re-running it only fills what is missing.
+filter_queue () {
+  local job name log n
+  for job in "$@"; do
+    name="${job%%:*}"
+    log="${HOST_OUT}/logs/${name}.log"
+    n=0
+    [[ -f "${log}" ]] && n="$(grep -c 'in csv format' "${log}" || true)"
+    if [[ "${n}" -eq 50 ]]; then
+      echo "  SKIP ${name} (already complete, 50 evals)" >&2
+    else
+      [[ "${n}" -gt 0 ]] && echo "  REDO ${name} (incomplete, ${n}/50 evals)" >&2
+      echo "${job}"
+    fi
+  done
+}
+mapfile -t QUEUE_A < <(filter_queue "${QUEUE_A[@]}")
+mapfile -t QUEUE_B < <(filter_queue "${QUEUE_B[@]}")
+if [[ ${#QUEUE_A[@]} -eq 0 && ${#QUEUE_B[@]} -eq 0 ]]; then
+  echo "Nothing to do: every requested run is already complete." >&2
+  exit 0
+fi
 
 run_queue() {
   local gpu="$1"; shift
+  [[ $# -eq 0 ]] && return 0
   for job in "$@"; do
     IFS=: read -r name cfg seed <<< "${job}"
     echo "[gpu ${gpu}] START ${name}  seed=${seed}  $(date +%H:%M:%S)"
