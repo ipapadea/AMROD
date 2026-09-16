@@ -63,8 +63,15 @@ done
 
 echo "######################################################################"
 echo "SEEDS 42/123 for ${OPT}   (${#TODO[@]} runs over ${#GPUS[@]} GPU(s))"
-printf '  %s\n' "${TODO[@]%%:*}" | paste -sd' ' -
+for i in "${!TODO[@]}"; do
+  IFS=: read -r proto name _ seed _ <<< "${TODO[$i]}"
+  echo "  gpu ${GPUS[$((i % ${#GPUS[@]}))]}  ${name}  (${proto}, seed ${seed})"
+done
 echo "######################################################################"
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "DRY_RUN=1 -- nothing launched."
+  exit 0
+fi
 
 run_one () {
   IFS=: read -r proto name cfg seed _ <<< "$2"
