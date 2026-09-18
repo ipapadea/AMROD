@@ -74,6 +74,7 @@ RUNS = [
     ("e11_bothsc_ctcrD_acdcLT_s0",     "Ours, full MTL (E11)",          "acdcLT", "reference"),
     ("e25_detonly_acdc_acdcLT_s0",     "B1 &mdash; detection-only",          "acdcLT", ""),
     ("e24_seghead_only_acdc_acdcLT_s0", "S6 &mdash; seg-head-only routing",  "acdcLT", ""),
+    ("e27_s6_entropy_acdc_acdcLT_s0",  "O2 &mdash; S6 + entropy CE",         "acdcLT", ""),
     # ---- short-term
     ("source_only_pfn_cs_c",           "Source (no adaptation)",        "csc12", ""),
     ("e11_bothsc_ctcrD_csc12_s0",      "Ours, full MTL (E11)",          "csc12", "reference"),
@@ -195,14 +196,22 @@ def build_table(rows, proto, metric, source_vals):
 
     src_mean = mean(source_vals) if source_vals else None
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    expected = nd * p["rounds"]
 
     for label, vals, frac, note in rows:
         cells = [label]
         for r in shows:
             chunk = vals[(r - 1) * nd:r * nd]
             cells += [fmt(chunk[i]) if i < len(chunk) else "--" for i in range(nd)]
-        m = mean(vals)
-        cells.append(f"**{m:.1f}**" if m == m else "--")
+        # Never report a mean for a run that did not finish the protocol: a
+        # partial mean over a different domain subset is not comparable to a
+        # complete one and reads like a real (catastrophic) result.
+        m = mean(vals) if len(vals) >= expected else float("nan")
+        if m == m:
+            cells.append(f"**{m:.1f}**")
+        else:
+            cells.append(f"incomplete ({len(vals)}/{expected})"
+                         if vals else "--")
         if src_mean is not None and m == m:
             cells.append(f"{m - src_mean:+.1f}")
         else:
@@ -468,6 +477,7 @@ def main():
         ("e22_seghead_only_cscLT_s0", "S6 seg-head-only routing"),
         ("e13a_thrmax080_cscLT_s0", "E13a full MTL"),
         ("e11_bothsc_ctcrD_acdcLT_s0", "E11 full MTL (ACDC)"),
+        ("e27_s6_entropy_acdc_acdcLT_s0", "O2 S6+entropy CE (ACDC)"),
     ]
     seed_rows = []
     for stem, label in SEEDED:

@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-17 00:05 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-18 14:17 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `6e1d089`
+Commit: `e500f44`
 
 ## 1. Setup
 
@@ -107,6 +107,7 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 | Ours, full MTL (E11) | 53.9 | 18.2 | 39.4 | 42.0 | 60.0 | 25.4 | 43.3 | 50.0 | 59.9 | 27.0 | 44.0 | 51.1 | 58.3 | 26.7 | 43.6 | 50.8 | **44.0** | +11.0 | 16.0k |
 | B1 &mdash; detection-only | 52.2 | 17.4 | 38.8 | 39.9 | 57.9 | 24.9 | 44.1 | 46.6 | 59.9 | 27.6 | 45.1 | 48.7 | 61.1 | 27.9 | 44.7 | 48.9 | **43.4** | +10.4 | 12.2k |
 | S6 &mdash; seg-head-only routing | 52.3 | 17.5 | 38.1 | 40.3 | 58.6 | 25.5 | 43.6 | 46.9 | 60.1 | 27.3 | 44.6 | 47.9 | 60.8 | 28.6 | 43.8 | 48.5 | **43.5** | +10.5 | 16.0k |
+| O2 &mdash; S6 + entropy CE | 52.5 | 17.6 | 35.9 | 42.5 | 60.2 | 27.1 | 42.3 | 48.8 | 61.1 | 28.8 | 42.7 | 49.9 | 59.9 | 29.6 | 43.0 | 50.0 | **44.0** | +11.0 | 16.0k |
 
 ## Table 4
 **Cityscapes to ACDC, long-term &mdash; mIoU.** Four conditions repeated ten times, no reset (40 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -119,6 +120,7 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 | Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 37.8 | 47.6 | 25.9 | 47.8 | 42.6 | 46.6 | 25.9 | 46.8 | 42.4 | 45.2 | 25.5 | 45.5 | 41.7 | **39.8** | +9.4 | 16.0k |
 | B1 &mdash; detection-only | 39.3 | 19.8 | 41.3 | 35.4 | 47.5 | 24.1 | 44.9 | 40.3 | 48.3 | 25.9 | 45.5 | 41.2 | 48.2 | 26.3 | 44.6 | 41.0 | **38.9** | +8.4 | 12.2k |
 | S6 &mdash; seg-head-only routing | 39.2 | 19.8 | 41.3 | 35.3 | 46.1 | 23.7 | 44.2 | 38.9 | 46.7 | 24.7 | 44.6 | 39.8 | 44.6 | 25.2 | 41.9 | 37.5 | **37.6** | +7.2 | 16.0k |
+| O2 &mdash; S6 + entropy CE | 39.2 | 19.9 | 35.7 | 37.2 | 46.3 | 24.8 | 39.1 | 39.0 | 45.7 | 25.6 | 38.8 | 38.6 | 43.7 | 25.8 | 37.1 | 36.4 | **36.5** | +6.0 | 16.0k |
 
 ## Table 5
 **Cityscapes to Cityscapes-C, short-term &mdash; mAP0.5.** Twelve corruptions, single pass (12 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -127,6 +129,9 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Source (no adaptation) | 6.6 | 4.0 | 9.5 | 1.1 | 0.2 | 2.1 | 33.0 | 16.4 | 3.7 | 61.5 | 8.2 | 6.0 | **12.7** | +0.0 | / |
 | Ours, full MTL (E11) | 8.1 | 6.4 | 12.1 | 2.1 | 0.2 | 5.9 | 42.3 | 31.4 | 9.8 | 57.6 | 13.9 | 14.2 | **17.0** | +4.3 | 6.0k |
+| B1 &mdash; detection-only | 7.6 | 6.3 | 12.3 | 2.2 | 0.2 | 6.2 | 45.0 | 31.9 | 11.0 | 61.1 | 12.8 | 12.0 | **17.4** | +4.7 | 4.0k |
+| S6 &mdash; seg-head-only routing | 7.6 | 6.3 | 12.6 | 2.2 | 0.2 | 6.2 | 45.7 | 31.2 | 10.8 | 61.1 | 12.5 | 11.9 | **17.4** | +4.7 | 6.0k |
+| O2 &mdash; S6 + entropy CE | 7.5 | 5.9 | 12.2 | 2.2 | 0.2 | 5.5 | 45.0 | 28.7 | 10.2 | 61.1 | 13.1 | 12.3 | **17.0** | +4.3 | 6.0k |
 
 ## Table 6
 **Cityscapes to Cityscapes-C, short-term &mdash; mIoU.** Twelve corruptions, single pass (12 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -135,6 +140,9 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Source (no adaptation) | 26.4 | 27.1 | 32.4 | 18.4 | 7.5 | 12.4 | 37.6 | 32.1 | 14.1 | 64.3 | 27.0 | 15.8 | **26.3** | +0.0 | / |
 | Ours, full MTL (E11) | 29.1 | 29.3 | 36.4 | 20.3 | 8.1 | 16.2 | 38.6 | 39.0 | 18.8 | 59.8 | 30.2 | 18.7 | **28.7** | +2.5 | 6.0k |
+| B1 &mdash; detection-only | 28.3 | 28.5 | 34.9 | 19.9 | 7.9 | 16.8 | 44.4 | 41.6 | 21.5 | 63.0 | 28.3 | 16.5 | **29.3** | +3.0 | 4.0k |
+| S6 &mdash; seg-head-only routing | 28.2 | 28.8 | 34.9 | 19.5 | 8.1 | 16.2 | 44.1 | 40.0 | 20.4 | 62.7 | 28.5 | 16.8 | **29.0** | +2.8 | 6.0k |
+| O2 &mdash; S6 + entropy CE | 28.1 | 28.6 | 34.9 | 19.5 | 8.1 | 15.7 | 43.4 | 38.6 | 19.3 | 62.9 | 28.6 | 16.9 | **28.7** | +2.5 | 6.0k |
 
 ## Table 7
 **Cityscapes to ACDC, short-term &mdash; mAP0.5.** Four conditions, single pass (4 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -143,6 +151,9 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 |---|---|---|---|---|---|---|---|
 | Source (no adaptation) | 50.6 | 15.2 | 30.6 | 35.5 | **33.0** | +0.0 | / |
 | Ours, full MTL (E11) | 53.8 | 18.2 | 39.5 | 42.0 | **38.4** | +5.4 | 1.6k |
+| B1 &mdash; detection-only | 52.3 | 17.3 | 38.4 | 39.6 | **36.9** | +3.9 | 1.1k |
+| S6 &mdash; seg-head-only routing | 51.9 | 17.5 | 38.1 | 39.8 | **36.8** | +3.9 | 1.6k |
+| O2 &mdash; S6 + entropy CE | 52.3 | 17.5 | 38.2 | 39.8 | **36.9** | +4.0 | 1.6k |
 | Ours, CT-CR mode D | 52.5 | 16.6 | 38.0 | 40.7 | **36.9** | +4.0 | 1.6k |
 | AMROD | 52.1 | 16.9 | 36.8 | 37.8 | **35.9** | +2.9 | / |
 
@@ -153,6 +164,9 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 |---|---|---|---|---|---|---|---|
 | Source (no adaptation) | 38.5 | 18.8 | 32.4 | 32.1 | **30.4** | +0.0 | / |
 | Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 38.0 | **35.8** | +5.3 | 1.6k |
+| B1 &mdash; detection-only | 39.2 | 19.8 | 41.2 | 35.3 | **33.9** | +3.4 | 1.1k |
+| S6 &mdash; seg-head-only routing | 39.2 | 19.8 | 41.3 | 35.7 | **34.0** | +3.6 | 1.6k |
+| O2 &mdash; S6 + entropy CE | 39.2 | 19.8 | 41.2 | 35.3 | **33.9** | +3.4 | 1.6k |
 | Ours, CT-CR mode D | 39.8 | 20.0 | 42.9 | 37.4 | **35.1** | +4.6 | 1.6k |
 | TENT | 38.5 | 18.7 | 39.4 | 32.3 | **32.2** | +1.8 | / |
 | CoTTA | 38.3 | 17.9 | 37.8 | 29.6 | **30.9** | +0.4 | / |
@@ -201,6 +215,7 @@ These arms **change the source checkpoint**, so they are not same-source with th
 | S6 seg-head-only routing | 0,42,123 | 26.76 &plusmn; 0.14 | 34.60 &plusmn; 0.13 |
 | E13a full MTL | 0,42,123 | 25.07 &plusmn; 0.44 | 31.04 &plusmn; 0.27 |
 | E11 full MTL (ACDC) | 0,42,123 | 43.81 &plusmn; 0.22 | 40.03 &plusmn; 0.27 |
+| O2 S6+entropy CE (ACDC) | 0,42,123 | 44.18 &plusmn; 0.19 | 36.51 &plusmn; 0.21 |
 
 S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (difference 0.17, standard error of the difference 0.14) while **mIoU is a real loss** (difference 1.10, standard error 0.12). Routing recovers the detection ceiling and does not exceed it, and costs about one point of mIoU against not adapting segmentation at all.
 
@@ -216,12 +231,6 @@ S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (dif
 
 - `tent_pfnsrc_cscLT_s0` &mdash; TENT (cscLT)
 - `cotta_pfnsrc_cscLT_s0` &mdash; CoTTA (cscLT)
-- `e25_detonly_csc12_s0` &mdash; B1 &mdash; detection-only (csc12)
-- `e24_seghead_only_csc12_s0` &mdash; S6 &mdash; seg-head-only routing (csc12)
-- `e27_s6_entropy_csc12_s0` &mdash; O2 &mdash; S6 + entropy CE (csc12)
-- `e25_detonly_acdc4_s0` &mdash; B1 &mdash; detection-only (acdc4)
-- `e24_seghead_only_acdc4_s0` &mdash; S6 &mdash; seg-head-only routing (acdc4)
-- `e27_s6_entropy_acdc4_s0` &mdash; O2 &mdash; S6 + entropy CE (acdc4)
 - TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` CoTTA log has 0 evaluations; no long-term run exists here
 - Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every `vs full MTL` margin is currently n=1 on the reference
 
