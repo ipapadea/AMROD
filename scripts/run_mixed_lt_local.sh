@@ -30,9 +30,20 @@ if [[ -z "${STREAM}" ]]; then
   STREAM="${STREAM%,})"
 fi
 
-MOUNTS=()
 for c in "${CYCLE[@]}"; do
   [[ -d "${CSC_ROOT}/${c}/leftImg8bit/val" ]] || { echo "ERROR: missing ${CSC_ROOT}/${c}/leftImg8bit/val" >&2; exit 2; }
+done
+
+# Mount every corruption directory that has validation images, not only the
+# 5-domain default CYCLE. A custom STREAM (e.g. the 12-corruption short-term
+# protocol) references corruptions outside CYCLE; if those are not mounted the
+# run dies in a dataloader worker with a missing-file error on the 2nd domain.
+# 'cityscapes' is skipped: /datasets/cityscapes is already bound to CITYSCAPES_ROOT.
+MOUNTS=()
+for d in "${CSC_ROOT}"/*/; do
+  c="$(basename "${d}")"
+  [[ "${c}" == "cityscapes" ]] && continue
+  [[ -d "${d}/leftImg8bit/val" ]] || continue
   MOUNTS+=(-v "${CSC_ROOT}/${c}:/datasets/${c}:ro")
 done
 [[ -f "${CITYSCAPES_ROOT}/annotations/instancesonly_filtered_gtFine_val.json" ]] || { echo "ERROR: missing detection GT" >&2; exit 2; }
