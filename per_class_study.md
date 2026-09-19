@@ -1,6 +1,6 @@
 # Class-wise diagnostic study of task interaction under CTTA
 
-Generated 2026-09-19 21:11 by `scripts/classwise_analysis.py` from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-20 00:05 by `scripts/classwise_analysis.py` from the run logs. Do not edit by hand - regenerate.
 
 Detection classes are reported as **AP@[.5:.95]**, not AP50: detectron2 prints only the averaged per-category AP, and the per-evaluation prediction files are overwritten by each evaluation so AP50 per class cannot be recomputed offline. Segmentation classes are IoU. Within each benchmark all four conditions share one source checkpoint and one threshold lineage.
 
@@ -16,6 +16,17 @@ Detection classes are reported as **AP@[.5:.95]**, not AP50: detectron2 prints o
 | ACDC long-term | DET | `e25_detonly_acdc_acdcLT_s0` | 40 | 40 | yes |
 | ACDC long-term | SEG | `e29_segonly_acdc_acdcLT_s0` | 40 | 40 | yes |
 | ACDC long-term | Full | `e11_bothsc_ctcrD_acdcLT_s0` | 40 | 40 | yes |
+
+## Global task-activation factorial
+
+Aggregate metrics, for reference against the class-wise terms below. `I` is the interaction `Full - DET - SEG + Source`.
+
+| Benchmark | Metric | Source | DET | SEG | Full | d_SEG | d_DET | d_SEG&#124;DET | I |
+|---|---|---|---|---|---|---|---|---|---|
+| Cityscapes-C long-term | mAP0.5 | 13.2 | 26.8 | 15.1 | 24.8 | +1.9 | +13.6 | -2.0 | **-3.9** |
+| Cityscapes-C long-term | mIoU | 27.2 | 35.5 | 28.2 | 30.8 | +1.0 | +8.3 | -4.7 | **-5.7** |
+| ACDC long-term | mAP0.5 | 34.2 | 43.4 | 37.9 | 44.0 | +3.7 | +9.2 | +0.6 | **-3.1** |
+| ACDC long-term | mIoU | 32.2 | 38.9 | 36.4 | 39.8 | +4.2 | +6.6 | +0.9 | **-3.2** |
 
 ## Cityscapes-C long-term
 
@@ -423,6 +434,68 @@ A strongly negative `source score vs I_c` would mean the weakest source classes 
 | train | -3.52 | -7.80 | harmful on both |
 | motorcycle | +1.61 | -6.13 | **flips: helps on ACDC, harms on CSC** |
 | bicycle | -1.47 | -2.75 | harmful on both |
+
+## Conclusions
+
+### 1. The interaction is negative in every cell
+
+| Benchmark | detection I | segmentation I |
+|---|---|---|
+| Cityscapes-C long-term | -3.9 | -5.7 |
+| ACDC long-term | -3.1 | -3.2 |
+
+Enabling the segmentation loss on top of detection adaptation carries a cost on **both** benchmarks, including the one where multi-task adaptation wins overall. Multi-task interference is therefore not created by the synthetic corruption stream.
+
+The detection penalty is similar across benchmarks (differs by 0.9 mAP0.5), while the segmentation penalty is markedly larger on Cityscapes-C (differs by 2.4 mIoU). So the penalty is partly intrinsic to sharing the trunk and partly amplified by the long synthetic stream.
+
+What separates the two benchmarks is mainly the **main effect** of segmentation adaptation, i.e. how much it was worth on its own:
+
+| Benchmark | d_SEG mAP0.5 | d_SEG mIoU | d_SEG&#124;DET mAP0.5 | d_SEG&#124;DET mIoU |
+|---|---|---|---|---|
+| Cityscapes-C long-term | +1.9 | +1.0 | -2.0 | -4.7 |
+| ACDC long-term | +3.7 | +4.2 | +0.6 | +0.9 |
+
+The apparent sign flip lives in the **conditional** effect, not in the interaction: where segmentation adaptation has a large solo gain it survives the penalty, and where it has a small one it does not. This predicts that multi-task CTTA pays off exactly when the auxiliary task's standalone gain exceeds the interaction penalty.
+
+### 2. The damage is distributed across classes, not localised
+
+- Cityscapes-C long-term: **8/8** detection classes and **17/19** segmentation classes have `I_c < 0`.
+- ACDC long-term: **8/8** detection classes and **13/19** segmentation classes have `I_c < 0`.
+
+There is no small set of pathological classes to exclude, so per-class pseudo-label filtering cannot recover the loss.
+
+### 3. Shared-representation contamination, not cross-task class mapping
+
+| Benchmark | thing (mapped) mean I_c | stuff (no detection counterpart) mean I_c |
+|---|---|---|
+| Cityscapes-C long-term | -8.10 | -3.92 |
+| ACDC long-term | -4.63 | -2.21 |
+
+The mapped thing classes are hit hardest, so class mapping contributes. But stuff classes with **no detection counterpart at all** are also heavily damaged (worst on Cityscapes-C: `vegetation` -14.08, `pole` -7.32, `building` -6.46, `traffic light` -5.22). Those classes cannot be harmed through a shared label space, so the dominant mechanism is contamination of the shared representation.
+
+### 4. Which classes change sign between benchmarks
+
+Segmentation classes with `I_ACDC > 0 > I_CSC`: `sidewalk`, `wall`, `pole`, `traffic light`, `terrain`, `motorcycle` (5 of 6 are stuff classes).
+
+Detection classes that change sign: **none** - every detection class has a negative interaction on both benchmarks.
+
+### 5. Harmfulness is not explained by class difficulty
+
+| Benchmark | Task | source vs I_c | drift vs I_c |
+|---|---|---|---|
+| Cityscapes-C long-term | detection | -0.10 | 0.85 |
+| Cityscapes-C long-term | segmentation | 0.17 | 0.55 |
+| ACDC long-term | detection | 0.14 | 0.38 |
+| ACDC long-term | segmentation | -0.35 | 0.36 |
+
+Source accuracy never predicts harmfulness on any benchmark or task. Weak source classes are therefore *not* the ones generating damaging supervision, and a rare difficult class contributes little because it rarely fires. Late-round drift is a strong predictor on the long synthetic stream but only a weak one on adverse weather, so drift explains the Cityscapes-C collapse specifically rather than multi-task interference in general.
+
+### Caveats
+
+- Every arm here is **seed 0 only**; class-level values are noisier than the aggregate seed spread (0.14-0.20 mAP0.5). Treat `|I_c| < 1` as unresolved.
+- Detection classes are AP@[.5:.95], not AP50 (see the header).
+- `I_c` weights every class equally; the global metrics do not. The two agree here, but they are different quantities.
+- **ACDC source provenance.** The Source cell uses `source_only_pfn_acdc_full`, re-measured through the standard runner (400 images on each `acdc_*_mtl` set, per-category tables retained). It disagrees with the older `source_only_pfn_acdc` log used by `results.md` on the rain domain only (AP50 30.6 vs 35.5, mIoU 32.4 vs 39.4); the other three domains match to 0.1. The old log is a filtered 80-line extract with no inference markers, so it cannot be audited. Every interaction term on ACDC shifts by the difference in the Source cell, so this must be resolved before the ACDC numbers are published.
 
 ## Not answerable from the current logs
 

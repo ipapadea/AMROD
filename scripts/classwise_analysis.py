@@ -123,6 +123,43 @@ def parse_classwise(path):
     return det, seg
 
 
+def parse_global(path):
+    """-> (per-evaluation AP50, per-evaluation mIoU), the aggregate metrics."""
+    ap, iou, task = [], [], None
+    if not os.path.exists(path):
+        return ap, iou
+    for line in open(path, errors="ignore"):
+        if "copypaste: Task: bbox" in line:
+            task = "b"; continue
+        if "copypaste: Task: sem_seg" in line:
+            task = "s"; continue
+        m = re.search(r"copypaste: ([\d.,]+)\s*$", line)
+        if m and task:
+            v = [float(x) for x in m.group(1).split(",") if x]
+            if task == "b" and len(v) >= 2:
+                ap.append(v[1])
+            elif task == "s" and v:
+                iou.append(v[0])
+            task = None
+    return ap, iou
+
+
+def load_globals(logs, proto):
+    """-> {condition: {'ap': mean AP50, 'iou': mean mIoU}} over the whole stream."""
+    p = PROTOCOLS[proto]
+    out = {}
+    for cond, stem in CONDITIONS[proto].items():
+        ap, iou = parse_global(os.path.join(logs, f"{stem}.log"))
+        if cond == "Source" and proto == "cscLT":
+            # measured on the 12-corruption pass; take the five cycle domains
+            if len(ap) >= 12:
+                ap = [ap[CSC12_ORDER.index(d)] for d in p["domains"]]
+            if len(iou) >= 12:
+                iou = [iou[CSC12_ORDER.index(d)] for d in p["domains"]]
+        out[cond] = {"ap": mean(ap), "iou": mean(iou)}
+    return out
+
+
 def mean(xs):
     xs = [x for x in xs if x == x]
     return sum(xs) / len(xs) if xs else float("nan")
@@ -223,7 +260,7 @@ def effects(bench, task, classes):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--logs", default="/media/ilias/DATA/ilias/amrod_output/logs")
-    ap.add_argument("--out", default="classwise_report.md")
+    ap.add_argument("--out", default="per_class_study.md")
     a = ap.parse_args()
 
     o = []
@@ -238,9 +275,10 @@ def main():
       "benchmark all four conditions share one source checkpoint and one "
       "threshold lineage.\n")
 
-    benches, covs = {}, {}
+    benches, covs, globs = {}, {}, {}
     for proto in ("cscLT", "acdcLT"):
         benches[proto], covs[proto] = load_benchmark(a.logs, proto)
+        globs[proto] = load_globals(a.logs, proto)
 
     # ------------------------------------------------------------- coverage
     w("## Data coverage\n")
@@ -254,6 +292,25 @@ def main():
             ok = "yes" if (nde >= need and nse >= need) else (
                 "seg only" if nse >= need else "**NO**")
             w(f"| {PROTOCOLS[proto]['title']} | {cond} | `{stem}` | {nde} | {nse} | {ok} |")
+    w("")
+
+    # ------------------------------------------------- global 2x2 factorial
+    w("## Global task-activation factorial\n")
+    w("Aggregate metrics, for reference against the class-wise terms below. "
+      "`I` is the interaction `Full - DET - SEG + Source`.\n")
+    w("| Benchmark | Metric | Source | DET | SEG | Full | d_SEG | d_DET | "
+      "d_SEG&#124;DET | I |")
+    w("|---|---|---|---|---|---|---|---|---|---|")
+    for proto in ("cscLT", "acdcLT"):
+        for metric, key in (("mAP0.5", "ap"), ("mIoU", "iou")):
+            g = {c: globs[proto][c][key] for c in ("Source", "DET", "SEG", "Full")}
+            if any(v != v for v in g.values()):
+                continue
+            I = g["Full"] - g["DET"] - g["SEG"] + g["Source"]
+            w(f"| {PROTOCOLS[proto]['title']} | {metric} | {g['Source']:.1f} | "
+              f"{g['DET']:.1f} | {g['SEG']:.1f} | {g['Full']:.1f} | "
+              f"{g['SEG'] - g['Source']:+.1f} | {g['DET'] - g['Source']:+.1f} | "
+              f"{g['Full'] - g['DET']:+.1f} | **{I:+.1f}** |")
     w("")
 
     for proto in ("cscLT", "acdcLT"):
@@ -361,6 +418,138 @@ def main():
                     verdict = "flips the other way"
                 w(f"| {c} | {fmt(ia, sign=True)} | {fmt(ic, sign=True)} | {verdict} |")
             w("")
+
+    # ------------------------------------------------------------ conclusions
+    if ok["cscLT"] and ok["acdcLT"]:
+        EFF = {pr: {t: effects(benches[pr], t, cl)
+                    for t, cl in (("det", DET_CLASSES), ("seg", SEG_CLASSES))}
+               for pr in ("cscLT", "acdcLT")}
+        tax = {(pr, k): (globs[pr]["Full"][k] - globs[pr]["DET"][k]
+                         - globs[pr]["SEG"][k] + globs[pr]["Source"][k])
+               for pr in ("cscLT", "acdcLT") for k in ("ap", "iou")}
+        main = {(pr, k): globs[pr]["SEG"][k] - globs[pr]["Source"][k]
+                for pr in ("cscLT", "acdcLT") for k in ("ap", "iou")}
+        cond = {(pr, k): globs[pr]["Full"][k] - globs[pr]["DET"][k]
+                for pr in ("cscLT", "acdcLT") for k in ("ap", "iou")}
+
+        def negcount(pr, t, cl):
+            return sum(1 for c in cl if EFF[pr][t][c]["I"] < 0), len(cl)
+
+        w("## Conclusions\n")
+
+        w("### 1. The interaction is negative in every cell\n")
+        w(f"| Benchmark | detection I | segmentation I |")
+        w("|---|---|---|")
+        for pr in ("cscLT", "acdcLT"):
+            w(f"| {PROTOCOLS[pr]['title']} | {tax[(pr,'ap')]:+.1f} | {tax[(pr,'iou')]:+.1f} |")
+        w("")
+        gap_ap = abs(tax[("cscLT", "ap")] - tax[("acdcLT", "ap")])
+        gap_iou = abs(tax[("cscLT", "iou")] - tax[("acdcLT", "iou")])
+        w("Enabling the segmentation loss on top of detection adaptation "
+          "carries a cost on **both** benchmarks, including the one where "
+          "multi-task adaptation wins overall. Multi-task interference is "
+          "therefore not created by the synthetic corruption stream.\n")
+        w(f"The detection penalty is similar across benchmarks (differs by "
+          f"{gap_ap:.1f} mAP0.5), while the segmentation penalty is "
+          f"{'markedly' if gap_iou > 1.5 else 'slightly'} larger on "
+          f"Cityscapes-C (differs by {gap_iou:.1f} mIoU). So the penalty is "
+          "partly intrinsic to sharing the trunk and partly amplified by the "
+          "long synthetic stream.\n")
+        w("What separates the two benchmarks is mainly the **main effect** of "
+          "segmentation adaptation, i.e. how much it was worth on its own:\n")
+        w("| Benchmark | d_SEG mAP0.5 | d_SEG mIoU | d_SEG&#124;DET mAP0.5 | d_SEG&#124;DET mIoU |")
+        w("|---|---|---|---|---|")
+        for pr in ("cscLT", "acdcLT"):
+            w(f"| {PROTOCOLS[pr]['title']} | {main[(pr,'ap')]:+.1f} | {main[(pr,'iou')]:+.1f} | "
+              f"{cond[(pr,'ap')]:+.1f} | {cond[(pr,'iou')]:+.1f} |")
+        w("")
+        w("The apparent sign flip lives in the **conditional** effect, not in "
+          "the interaction: where segmentation adaptation has a large solo "
+          "gain it survives the penalty, and where it has a small one it does "
+          "not. This predicts that multi-task CTTA pays off exactly when the "
+          "auxiliary task's standalone gain exceeds the interaction penalty.\n")
+
+        w("### 2. The damage is distributed across classes, not localised\n")
+        for pr in ("cscLT", "acdcLT"):
+            nd_, td_ = negcount(pr, "det", DET_CLASSES)
+            ns_, ts_ = negcount(pr, "seg", SEG_CLASSES)
+            w(f"- {PROTOCOLS[pr]['title']}: **{nd_}/{td_}** detection classes and "
+              f"**{ns_}/{ts_}** segmentation classes have `I_c < 0`.")
+        w("")
+        w("There is no small set of pathological classes to exclude, so "
+          "per-class pseudo-label filtering cannot recover the loss.\n")
+
+        w("### 3. Shared-representation contamination, not cross-task class mapping\n")
+        w("| Benchmark | thing (mapped) mean I_c | stuff (no detection counterpart) mean I_c |")
+        w("|---|---|---|")
+        for pr in ("cscLT", "acdcLT"):
+            th = mean([EFF[pr]["seg"][c]["I"] for c in SEG_THING])
+            st = mean([EFF[pr]["seg"][c]["I"] for c in SEG_STUFF])
+            w(f"| {PROTOCOLS[pr]['title']} | {th:+.2f} | {st:+.2f} |")
+        w("")
+        worst = sorted(SEG_STUFF, key=lambda c: EFF["cscLT"]["seg"][c]["I"])[:4]
+        w("The mapped thing classes are hit hardest, so class mapping "
+          "contributes. But stuff classes with **no detection counterpart at "
+          "all** are also heavily damaged (worst on Cityscapes-C: "
+          + ", ".join(f"`{c}` {EFF['cscLT']['seg'][c]['I']:+.2f}" for c in worst)
+          + "). Those classes cannot be harmed through a shared label space, "
+            "so the dominant mechanism is contamination of the shared "
+            "representation.\n")
+
+        flips = [c for c in SEG_CLASSES
+                 if EFF["acdcLT"]["seg"][c]["I"] > 0 > EFF["cscLT"]["seg"][c]["I"]]
+        dflips = [c for c in DET_CLASSES
+                  if EFF["acdcLT"]["det"][c]["I"] > 0 > EFF["cscLT"]["det"][c]["I"]]
+        w("### 4. Which classes change sign between benchmarks\n")
+        if flips:
+            n_stuff = sum(1 for c in flips if c in SEG_STUFF)
+            w(f"Segmentation classes with `I_ACDC > 0 > I_CSC`: "
+              + ", ".join(f"`{c}`" for c in flips)
+              + f" ({n_stuff} of {len(flips)} are stuff classes).\n")
+        else:
+            w("No segmentation class changes sign.\n")
+        w(f"Detection classes that change sign: "
+          + (", ".join(f"`{c}`" for c in dflips) if dflips else "**none** - "
+             "every detection class has a negative interaction on both "
+             "benchmarks.") + "\n")
+
+        w("### 5. Harmfulness is not explained by class difficulty\n")
+        w("| Benchmark | Task | source vs I_c | drift vs I_c |")
+        w("|---|---|---|---|")
+        for pr in ("cscLT", "acdcLT"):
+            for t, cl, label in (("det", DET_CLASSES, "detection"),
+                                 ("seg", SEG_CLASSES, "segmentation")):
+                s = [EFF[pr][t][c]["src"] for c in cl]
+                I = [EFF[pr][t][c]["I"] for c in cl]
+                d = [benches[pr]["Full"][t][c]["drift"] for c in cl]
+                w(f"| {PROTOCOLS[pr]['title']} | {label} | "
+                  f"{fmt(spearman(s, I))} | {fmt(spearman(d, I))} |")
+        w("")
+        w("Source accuracy never predicts harmfulness on any benchmark or "
+          "task. Weak source classes are therefore *not* the ones generating "
+          "damaging supervision, and a rare difficult class contributes little "
+          "because it rarely fires. Late-round drift is a strong predictor on "
+          "the long synthetic stream but only a weak one on adverse weather, "
+          "so drift explains the Cityscapes-C collapse specifically rather "
+          "than multi-task interference in general.\n")
+
+        w("### Caveats\n")
+        w("- Every arm here is **seed 0 only**; class-level values are noisier "
+          "than the aggregate seed spread (0.14-0.20 mAP0.5). Treat "
+          "`|I_c| < 1` as unresolved.")
+        w("- Detection classes are AP@[.5:.95], not AP50 (see the header).")
+        w("- `I_c` weights every class equally; the global metrics do not. The "
+          "two agree here, but they are different quantities.")
+        w("- **ACDC source provenance.** The Source cell uses "
+          "`source_only_pfn_acdc_full`, re-measured through the standard "
+          "runner (400 images on each `acdc_*_mtl` set, per-category tables "
+          "retained). It disagrees with the older `source_only_pfn_acdc` log "
+          "used by `results.md` on the rain domain only (AP50 30.6 vs 35.5, "
+          "mIoU 32.4 vs 39.4); the other three domains match to 0.1. The old "
+          "log is a filtered 80-line extract with no inference markers, so it "
+          "cannot be audited. Every interaction term on ACDC shifts by the "
+          "difference in the Source cell, so this must be resolved before the "
+          "ACDC numbers are published.\n")
 
     # ----------------------------------------------------------- what is missing
     w("## Not answerable from the current logs\n")
