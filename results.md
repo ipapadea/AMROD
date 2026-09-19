@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-18 14:17 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-19 12:36 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `e500f44`
+Commit: `4661fcc`
 
 ## 1. Setup
 
@@ -85,6 +85,8 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 | Condition | R1 Fog | R1 Motion | R1 Snow | R1 Bright | R1 Defocus | R5 Fog | R5 Motion | R5 Snow | R5 Bright | R5 Defocus | R10 Fog | R10 Motion | R10 Snow | R10 Bright | R10 Defocus | Mean | Gain | Iter. |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Source (no adaptation) | 37.6 | 32.4 | 7.5 | 32.1 | 26.4 | 37.6 | 32.4 | 7.5 | 32.1 | 26.4 | 37.6 | 32.4 | 7.5 | 32.1 | 26.4 | **27.2** | +0.0 | / |
+| TENT | 37.6 | 32.4 | 7.5 | 31.8 | 26.3 | 34.7 | 32.0 | 7.6 | 29.0 | 25.2 | 31.5 | 31.0 | 7.5 | 26.1 | 23.7 | **25.5** | -1.7 | / |
+| CoTTA | 36.9 | 31.7 | 7.4 | 29.9 | 24.2 | 30.9 | 30.7 | 7.5 | 26.5 | 21.4 | 30.4 | 30.6 | 7.5 | 26.2 | 21.2 | **23.8** | -3.4 | / |
 | Ours, full MTL (E11, thr 0.9) | 40.6 | 34.8 | 7.9 | 38.1 | 32.9 | 37.4 | 36.8 | 9.6 | 41.5 | 34.3 | 30.3 | 32.5 | 11.6 | 38.0 | 30.0 | **31.1** | +3.9 | 25.0k |
 | Ours, full MTL (E13a, thr 0.8) | 40.4 | 34.7 | 7.9 | 37.7 | 32.2 | 36.8 | 36.6 | 10.9 | 41.6 | 33.3 | 29.6 | 31.8 | 12.8 | 37.3 | 29.0 | **30.8** | +3.6 | 25.0k |
 | C1 &mdash; no cross-task losses | 39.4 | 33.8 | 7.6 | 35.2 | 30.9 | 40.2 | 38.2 | 8.2 | 42.4 | 35.4 | 36.3 | 36.6 | 8.4 | 41.5 | 34.3 | **32.0** | +4.7 | 25.0k |
@@ -119,6 +121,7 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 | CoTTA | 38.3 | 17.9 | 37.8 | 29.6 | 26.2 | 12.9 | 27.0 | 20.3 | 18.9 | 10.1 | 20.9 | 15.8 | 15.7 | 8.6 | 17.9 | 13.6 | **20.2** | -10.3 | / |
 | Ours, full MTL (E11) | 40.5 | 21.0 | 43.5 | 37.8 | 47.6 | 25.9 | 47.8 | 42.6 | 46.6 | 25.9 | 46.8 | 42.4 | 45.2 | 25.5 | 45.5 | 41.7 | **39.8** | +9.4 | 16.0k |
 | B1 &mdash; detection-only | 39.3 | 19.8 | 41.3 | 35.4 | 47.5 | 24.1 | 44.9 | 40.3 | 48.3 | 25.9 | 45.5 | 41.2 | 48.2 | 26.3 | 44.6 | 41.0 | **38.9** | +8.4 | 12.2k |
+| B2 &mdash; segmentation-only | 39.4 | 19.6 | 40.9 | 34.8 | 42.9 | 21.7 | 43.2 | 37.5 | 44.3 | 22.3 | 43.9 | 38.5 | 45.1 | 22.4 | 43.8 | 38.9 | **36.4** | +6.0 | 16.0k |
 | S6 &mdash; seg-head-only routing | 39.2 | 19.8 | 41.3 | 35.3 | 46.1 | 23.7 | 44.2 | 38.9 | 46.7 | 24.7 | 44.6 | 39.8 | 44.6 | 25.2 | 41.9 | 37.5 | **37.6** | +7.2 | 16.0k |
 | O2 &mdash; S6 + entropy CE | 39.2 | 19.9 | 35.7 | 37.2 | 46.3 | 24.8 | 39.1 | 39.0 | 45.7 | 25.6 | 38.8 | 38.6 | 43.7 | 25.8 | 37.1 | 36.4 | **36.5** | +6.0 | 16.0k |
 
@@ -132,6 +135,7 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 | B1 &mdash; detection-only | 7.6 | 6.3 | 12.3 | 2.2 | 0.2 | 6.2 | 45.0 | 31.9 | 11.0 | 61.1 | 12.8 | 12.0 | **17.4** | +4.7 | 4.0k |
 | S6 &mdash; seg-head-only routing | 7.6 | 6.3 | 12.6 | 2.2 | 0.2 | 6.2 | 45.7 | 31.2 | 10.8 | 61.1 | 12.5 | 11.9 | **17.4** | +4.7 | 6.0k |
 | O2 &mdash; S6 + entropy CE | 7.5 | 5.9 | 12.2 | 2.2 | 0.2 | 5.5 | 45.0 | 28.7 | 10.2 | 61.1 | 13.1 | 12.3 | **17.0** | +4.3 | 6.0k |
+| AMROD | 7.0 | 4.9 | 10.6 | 1.1 | 0.2 | 3.4 | 40.6 | 26.2 | 5.9 | 61.8 | 9.8 | 9.4 | **15.1** | +2.4 | / |
 
 ## Table 6
 **Cityscapes to Cityscapes-C, short-term &mdash; mIoU.** Twelve corruptions, single pass (12 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -143,6 +147,8 @@ optimiser         SGD, lr 1e-3, momentum 0.9, weight decay 1e-4
 | B1 &mdash; detection-only | 28.3 | 28.5 | 34.9 | 19.9 | 7.9 | 16.8 | 44.4 | 41.6 | 21.5 | 63.0 | 28.3 | 16.5 | **29.3** | +3.0 | 4.0k |
 | S6 &mdash; seg-head-only routing | 28.2 | 28.8 | 34.9 | 19.5 | 8.1 | 16.2 | 44.1 | 40.0 | 20.4 | 62.7 | 28.5 | 16.8 | **29.0** | +2.8 | 6.0k |
 | O2 &mdash; S6 + entropy CE | 28.1 | 28.6 | 34.9 | 19.5 | 8.1 | 15.7 | 43.4 | 38.6 | 19.3 | 62.9 | 28.6 | 16.9 | **28.7** | +2.5 | 6.0k |
+| TENT | 26.4 | 27.0 | 32.4 | 18.4 | 7.6 | 12.1 | 36.6 | 31.0 | 13.3 | 63.3 | 25.6 | 15.5 | **25.8** | -0.5 | / |
+| CoTTA | 25.6 | 26.7 | 31.3 | 17.1 | 7.5 | 9.6 | 32.5 | 27.5 | 9.7 | 63.8 | 23.4 | 14.8 | **24.1** | -2.1 | / |
 
 ## Table 7
 **Cityscapes to ACDC, short-term &mdash; mAP0.5.** Four conditions, single pass (4 evaluations). `B`/`C`/`S` rows are single-factor ablations of the reference row above them.
@@ -229,8 +235,6 @@ S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (dif
 
 ## Gaps: runs referenced above that are absent from this machine
 
-- `tent_pfnsrc_cscLT_s0` &mdash; TENT (cscLT)
-- `cotta_pfnsrc_cscLT_s0` &mdash; CoTTA (cscLT)
 - TENT and CoTTA on Cityscapes-C (both protocols) &mdash; the `csc12` CoTTA log has 0 evaluations; no long-term run exists here
 - Seeds 42/123 for E13a on Cityscapes-C long-term &mdash; every `vs full MTL` margin is currently n=1 on the reference
 

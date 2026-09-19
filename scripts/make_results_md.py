@@ -73,6 +73,7 @@ RUNS = [
     ("amrod_pfnsrc_acdcLT_s0",         "AMROD",                         "acdcLT", ""),
     ("e11_bothsc_ctcrD_acdcLT_s0",     "Ours, full MTL (E11)",          "acdcLT", "reference"),
     ("e25_detonly_acdc_acdcLT_s0",     "B1 &mdash; detection-only",          "acdcLT", ""),
+    ("e29_segonly_acdc_acdcLT_s0",     "B2 &mdash; segmentation-only",       "acdcLT", ""),
     ("e24_seghead_only_acdc_acdcLT_s0", "S6 &mdash; seg-head-only routing",  "acdcLT", ""),
     ("e27_s6_entropy_acdc_acdcLT_s0",  "O2 &mdash; S6 + entropy CE",         "acdcLT", ""),
     # ---- short-term

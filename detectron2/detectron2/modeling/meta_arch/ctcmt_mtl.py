@@ -1962,7 +1962,11 @@ class CTCMT_MTL(nn.Module):
 
         # 5. Report TEACHER predictions for evaluation (no panoptic combine).
         with torch.no_grad():
-            if self.seg_only:
+            # Only skip the detector when the teacher genuinely has none (ST-S
+            # specialist). A seg-only MTL teacher still has one, and its
+            # detection AP is what measures seg adaptation's effect on the
+            # shared trunk.
+            if self.seg_only and not hasattr(self.teacher, "roi_heads"):
                 # No detector, and the teacher must see the weak view even when
                 # the student was trained on the strong one.
                 t_images = self.teacher.preprocess_image(batched_inputs)
