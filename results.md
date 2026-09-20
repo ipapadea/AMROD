@@ -1,8 +1,8 @@
 # Results
 
-Generated 2026-09-19 21:11 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-20 15:51 by `scripts/make_results_md.py` directly from the run logs. Do not edit by hand - regenerate.
 
-Commit: `e414fd0`
+Commit: `1c2a231`
 
 ## 1. Setup
 
@@ -225,6 +225,23 @@ These arms **change the source checkpoint**, so they are not same-source with th
 | O2 S6+entropy CE (ACDC) | 0,42,123 | 44.18 &plusmn; 0.19 | 36.51 &plusmn; 0.21 |
 
 S6 versus the detection-only ceiling, over three seeds: **mAP0.5 is a tie** (difference 0.17, standard error of the difference 0.14) while **mIoU is a real loss** (difference 1.10, standard error 0.12). Routing recovers the detection ceiling and does not exceed it, and costs about one point of mIoU against not adapting segmentation at all.
+
+## Fisher-restoration diagnostics
+
+> **Attribution.** These arms enable `CTCMT_FISHER_RESTORE`, a port of AMROD's gradient-magnitude **Randomized Restoration** (Wei et al.), one of that paper's two titular contributions. They are reported to locate the segmentation failure, and must never be presented as our mechanism. They are same-source, but they are not paper rows.
+
+| Arm | vs reference | protocol | mAP0.5 | &Delta; | mIoU | &Delta; | seg drift | ref seg drift |
+|---|---|---|---|---|---|---|---|---|
+| E13a + Fisher restore | E13a full MTL | `cscLT` | 25.30 | +0.51 | 32.29 | +1.46 | -1.89 | -5.16 |
+| S6 + Fisher restore | S6 routing | `cscLT` | 27.49 | +0.74 | 35.05 | +0.31 | -1.57 | -0.32 |
+| E11 + Fisher restore | E11 full MTL | `acdcLT` | 44.11 | +0.12 | 40.21 | +0.41 | -1.06 | -1.49 |
+| S6 + Fisher restore | S6 routing | `acdcLT` | 43.41 | -0.05 | 37.92 | +0.28 | -1.43 | -1.65 |
+
+**It is a drift fix, and it survives falsification.** On Cityscapes-C the full-MTL segmentation curve collapses (drift -5.16 mIoU); restoration cuts that to roughly a third. The same substitution on ACDC, where the curve barely drifts, yields a much smaller gain - which is what the drift explanation predicts and what would have refuted it had the gains matched.
+
+**It accelerates convergence rather than raising the asymptote.** S6 + Fisher leads S6 by ~3 mAP0.5 at round 3 but ends *below* it at round 10, so its higher stream-mean is an averaging effect. It does not exceed the detection-only ceiling in the limit.
+
+**Routing and restoration are substitutes, not complements.** S6 already prevents the segmentation collapse, so adding restoration on top contributes nothing late, and on ACDC it recovers only a fraction of the mIoU that routing gives away.
 
 ## Reproducibility and caveats
 

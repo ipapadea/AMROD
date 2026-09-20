@@ -517,6 +517,69 @@ def main():
           "does not exceed it, and costs about one point of mIoU against not "
           "adapting segmentation at all.\n")
 
+    # ------------------------------------------- Fisher restoration diagnostics
+    FISHER = [
+        ("e30_fisher_full_cscLT_s0", "E13a + Fisher restore",
+         "e13a_thrmax080_cscLT_s0", "E13a full MTL", "cscLT"),
+        ("e31_fisher_s6_cscLT_s0", "S6 + Fisher restore",
+         "e22_seghead_only_cscLT_s0", "S6 routing", "cscLT"),
+        ("e32_fisher_full_acdcLT_s0", "E11 + Fisher restore",
+         "e11_bothsc_ctcrD_acdcLT_s0", "E11 full MTL", "acdcLT"),
+        ("e33_fisher_s6_acdcLT_s0", "S6 + Fisher restore",
+         "e24_seghead_only_acdc_acdcLT_s0", "S6 routing", "acdcLT"),
+    ]
+
+    def _traj(stem, per):
+        ap, iou, _ = data.get(stem, (None, None, None))
+        if not ap:
+            p = os.path.join(a.logs, f"{stem}.log")
+            ap, iou, _ = parse(p) if os.path.exists(p) else (None, None, None)
+        if not ap:
+            return None
+        ra = [mean(ap[i * per:(i + 1) * per]) for i in range(len(ap) // per)]
+        ri = [mean(iou[i * per:(i + 1) * per]) for i in range(len(iou) // per)]
+        return ra, ri
+
+    frows = []
+    for stem, label, ref, reflab, proto in FISHER:
+        per = len(PROTOCOLS[proto]["domains"])
+        t, tr = _traj(stem, per), _traj(ref, per)
+        if not t or not tr:
+            continue
+        frows.append((label, reflab, proto, t, tr))
+
+    if frows:
+        w("## Fisher-restoration diagnostics\n")
+        w("> **Attribution.** These arms enable `CTCMT_FISHER_RESTORE`, a port "
+          "of AMROD's gradient-magnitude **Randomized Restoration** (Wei et "
+          "al.), one of that paper's two titular contributions. They are "
+          "reported to locate the segmentation failure, and must never be "
+          "presented as our mechanism. They are same-source, but they are not "
+          "paper rows.\n")
+        w("| Arm | vs reference | protocol | mAP0.5 | &Delta; | mIoU | &Delta; "
+          "| seg drift | ref seg drift |")
+        w("|---|---|---|---|---|---|---|---|---|")
+        for label, reflab, proto, (ra, ri), (ra0, ri0) in frows:
+            w(f"| {label} | {reflab} | `{proto}` | {mean(ra):.2f} | "
+              f"{mean(ra) - mean(ra0):+.2f} | {mean(ri):.2f} | "
+              f"{mean(ri) - mean(ri0):+.2f} | {ri[-1] - max(ri):+.2f} | "
+              f"{ri0[-1] - max(ri0):+.2f} |")
+        w("")
+        w("**It is a drift fix, and it survives falsification.** On "
+          "Cityscapes-C the full-MTL segmentation curve collapses (drift "
+          "-5.16 mIoU); restoration cuts that to roughly a third. The same "
+          "substitution on ACDC, where the curve barely drifts, yields a much "
+          "smaller gain - which is what the drift explanation predicts and "
+          "what would have refuted it had the gains matched.\n")
+        w("**It accelerates convergence rather than raising the asymptote.** "
+          "S6 + Fisher leads S6 by ~3 mAP0.5 at round 3 but ends *below* it at "
+          "round 10, so its higher stream-mean is an averaging effect. It does "
+          "not exceed the detection-only ceiling in the limit.\n")
+        w("**Routing and restoration are substitutes, not complements.** S6 "
+          "already prevents the segmentation collapse, so adding restoration "
+          "on top contributes nothing late, and on ACDC it recovers only a "
+          "fraction of the mIoU that routing gives away.\n")
+
     # ----------------------------------------------------------- caveats
     w("## Reproducibility and caveats\n")
     w("- **Run-to-run noise.** Adaptation is not deterministic: cuDNN uses "

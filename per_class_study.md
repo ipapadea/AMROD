@@ -1,6 +1,6 @@
 # Class-wise diagnostic study of task interaction under CTTA
 
-Generated 2026-09-20 00:05 by `scripts/classwise_analysis.py` from the run logs. Do not edit by hand - regenerate.
+Generated 2026-09-20 15:51 by `scripts/classwise_analysis.py` from the run logs. Do not edit by hand - regenerate.
 
 Detection classes are reported as **AP@[.5:.95]**, not AP50: detectron2 prints only the averaged per-category AP, and the per-evaluation prediction files are overwritten by each evaluation so AP50 per class cannot be recomputed offline. Segmentation classes are IoU. Within each benchmark all four conditions share one source checkpoint and one threshold lineage.
 
